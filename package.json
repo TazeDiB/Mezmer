@@ -1,0 +1,31 @@
+{
+  "name": "mezmer",
+  "private": true,
+  "version": "0.6.0",
+  "description": "Interactive WebGL visualization of hyperbolic symmetry and moiré patterns.",
+  "author": "IdealSoft",
+  "type": "module",
+  "main": "public/electron.cjs",
+  "homepage": ".",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5180 && electron .\"",
+    "build": "vite build && node -e \"const fs=require('fs'); const p=require('path'); fs.copyFileSync(p.join('public','preload.js'), p.join('dist','preload.js')); fs.copyFileSync(p.join('public','recovered-app.js'), p.join('dist','recovered-app.js'));\"",
+    "preview": "vite preview",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron-is-dev": "^3.0.1",
+    "meyda": "^5.6.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-joyride": "^2.9.3",
+    "three": "^0.163.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "electron": "^29.4.6",
+    "vite": "^5.0.0",
+    "wait-on": "^7.2.0"
+  }
+}
