@@ -9,7 +9,7 @@
   "homepage": ".",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5180 && electron .\"",
-    "build": "vite build && node -e \"const fs=require('fs'); const p=require('path'); fs.copyFileSync(p.join('public','preload.js'), p.join('dist','preload.js')); fs.copyFileSync(p.join('public','recovered-app.js'), p.join('dist','recovered-app.js'));\"",
+    "build": "vite build && node -e \"const fs=require('fs'); const p=require('path'); fs.copyFileSync(p.join('public','preload.js'), p.join('dist','preload.js'));\"",
     "preview": "vite preview",
     "start": "electron ."
   },
