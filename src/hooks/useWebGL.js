@@ -1,6 +1,5 @@
 /**
  * WebGL / Three.js hook: scene, renderer, shaders, feedback, audio texture.
- * Extracted from legacy bundle; uses 'three' package.
  */
 import * as THREE from 'three';
 import React from 'react';
@@ -1622,7 +1621,7 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                 X = e.visualModeBlend ?? 1;
             Z.current = e.visualModeFromIndex ?? ld[W] ?? 0, xe.current = e.visualModeToIndex ?? ld[W] ?? 0, ae.current = X, v.current = ge;
             const ve = (Me = c == null ? void 0 : c.freqData) == null ? void 0 : Me.length;
-            ve && ve !== Q.current && (console.log(`Updating frequency bin count from ${Q.current} to ${ve}`), Q.current = ve, De.current = null, O.current && O.current.uniforms.u_frequency_bin_count && (O.current.uniforms.u_frequency_bin_count.value = ve))
+            ve && ve !== Q.current && (Q.current = ve, De.current = null, O.current && O.current.uniforms.u_frequency_bin_count && (O.current.uniforms.u_frequency_bin_count.value = ve))
         }, [e, n, r, o, s, a, l, d, h, p, g, c]), React.useEffect(() => {
             var rr, ln, jn, yt, Nt, it, ce, pr, T, N, V, H, k, _e, Ne, Ve, We, Ze, Ke, Xe, Ft, Qt, Ht, Sn, At, K, ze, be, $e, at, tt, qe, nt, gt, dt, Re, Ge, Ct, Ee, bt, Ut, Wt, Rt, Xn, bn, da, ha, pa, ma, ga, va, _a, lt, kt, gn, Jt, wn, It, ai, mo, Ot, Hr, Gr, Wr, ya, Sa, Li, go, vo, jl, Xl, bp, wp, Ap, Cp, Rp, Pp, Lp, Ip, Op, Dp, Np, Fp, Up, kp, zp, Bp, Vp, Hp, Gp, Wp, jp, Xp, $p, qp, Yp, Kp, Zp, Qp, Jp, em, tm, nm, rm, im, om, sm, am, lm, cm, um, fm, dm, hm, pm, mm, gm, vm, _m, ym;
             if (!t.current) return;
@@ -1639,9 +1638,7 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
             et.position.z = 1, F.current = et, Q.current = ((rr = c == null ? void 0 : c.freqData) == null ? void 0 : rr.length) || 128;
             const le = Q.current,
                 C = (c == null ? void 0 : c.freqData) || new Uint8Array(le).fill(0);
-            if (f.current) console.log("useWebGL: Audio texture ref already initialized.");
-            else {
-                console.log("useWebGL: Initializing audio texture on passed ref.");
+            if (!f.current) {
                 const An = new THREE.DataTexture(C, le, 1, THREE.RedFormat, THREE.UnsignedByteType);
                 An.needsUpdate = !0, f.current = An
             }
@@ -1970,7 +1967,7 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
             };
             return window.addEventListener("resize", si), () => {
                 var An, Tr, Ii, xa, Ma, Ea, Sm, xm, Mm, Em, Tm, bm, wm, Am, Cm, Rm, Pm, Lm, Im, Om, Dm, Nm, Fm, Um;
-                if (console.log("Cleaning up WebGL context..."), window.removeEventListener("resize", si), ee.current && cancelAnimationFrame(ee.current), (An = O.current) == null || An.dispose(), (Ii = (Tr = q.current) == null ? void 0 : Tr.geometry) == null || Ii.dispose(), (xa = j.current) == null || xa.dispose(), (Ma = $.current) == null || Ma.dispose(), (Ea = fe.current) == null || Ea.dispose(), (Sm = oe.current) == null || Sm.dispose(), (xm = ie.current) == null || xm.dispose(), (Mm = Ie.current) == null || Mm.dispose(), (Em = vt.current) == null || Em.dispose(), (bm = (Tm = b.current) == null ? void 0 : Tm.map) == null || bm.dispose(), (wm = b.current) == null || wm.dispose(), (Cm = (Am = x.current) == null ? void 0 : Am.geometry) == null || Cm.dispose(), (Pm = (Rm = B.current) == null ? void 0 : Rm.uniforms.u_textureA.value) == null || Pm.dispose(), (Im = (Lm = B.current) == null ? void 0 : Lm.uniforms.u_textureB.value) == null || Im.dispose(), (Om = B.current) == null || Om.dispose(), (Nm = (Dm = Y.current) == null ? void 0 : Dm.geometry) == null || Nm.dispose(), (Fm = E.current) == null || Fm.dispose(), W && ((Um = E.current) != null && Um.domElement)) try {
+                if (window.removeEventListener("resize", si), ee.current && cancelAnimationFrame(ee.current), (An = O.current) == null || An.dispose(), (Ii = (Tr = q.current) == null ? void 0 : Tr.geometry) == null || Ii.dispose(), (xa = j.current) == null || xa.dispose(), (Ma = $.current) == null || Ma.dispose(), (Ea = fe.current) == null || Ea.dispose(), (Sm = oe.current) == null || Sm.dispose(), (xm = ie.current) == null || xm.dispose(), (Mm = Ie.current) == null || Mm.dispose(), (Em = vt.current) == null || Em.dispose(), (bm = (Tm = b.current) == null ? void 0 : Tm.map) == null || bm.dispose(), (wm = b.current) == null || wm.dispose(), (Cm = (Am = x.current) == null ? void 0 : Am.geometry) == null || Cm.dispose(), (Pm = (Rm = B.current) == null ? void 0 : Rm.uniforms.u_textureA.value) == null || Pm.dispose(), (Im = (Lm = B.current) == null ? void 0 : Lm.uniforms.u_textureB.value) == null || Im.dispose(), (Om = B.current) == null || Om.dispose(), (Nm = (Dm = Y.current) == null ? void 0 : Dm.geometry) == null || Nm.dispose(), (Fm = E.current) == null || Fm.dispose(), W && ((Um = E.current) != null && Um.domElement)) try {
                     W.removeChild(E.current.domElement)
                 } catch (Ex) {
                     console.warn("Error removing canvas during cleanup:", Ex)

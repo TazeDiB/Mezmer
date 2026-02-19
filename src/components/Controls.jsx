@@ -1,6 +1,5 @@
 /**
  * Controls panel: layers, audio, randomization, global settings, Joyride tour.
- * Extracted from legacy bundle.
  */
 import React, { useCallback, useState, useMemo, memo } from 'react';
 import { jsx, jsxs } from 'react/jsx-runtime';
@@ -78,24 +77,12 @@ function Controls({
             [W]: !ge[W]
         }))
     }, []);
-    if (!t) return console.warn("Controls component rendered before params was initialized."), null;
+    if (!t) return console.warn("Controls: params not initialized."), null;
     const B = F || Ue;
-    console.log("Controls component rendered", {
-        isCapturing: Ue,
-        selectedSourceId: j,
-        desktopSourcesLength: I.length
-    });
-    const Y = () => {
-            Ue ? (console.log("Controls.jsx: Stop Capture button clicked!"), pe()) : (console.log("Controls.jsx: Start Capture button clicked!"), ye())
-        },
+    const Y = () => (Ue ? pe() : ye()),
         Z = useCallback(W => {
-            const {
-                name: ge,
-                value: X,
-                type: ve,
-                checked: Me
-            } = W.target;
-            console.log(`Controls.jsx: handleInputChange received - Name: ${ge}, Value: ${X}, Type: ${ve}`), ge === "blendSpeedFactor" ? c(parseFloat(X)) : ge === "desktopSourceSelect" ? (console.log(`Controls.jsx: desktopSourceSelect changed. New value: "${X}"`), $(X), console.log(`Controls.jsx: Called setSelectedSourceId with: "${X}"`)) : M(ge, ve === "checkbox" ? Me : X, ve)
+            const { name: ge, value: X, type: ve, checked: Me } = W.target;
+            ge === "blendSpeedFactor" ? c(parseFloat(X)) : ge === "desktopSourceSelect" ? $(X) : M(ge, ve === "checkbox" ? Me : X, ve);
         }, [c, $, M]),
         xe = t[e];
     if (!xe) return console.warn(`Controls: params[${e}] is undefined during render.`), null;

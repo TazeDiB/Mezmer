@@ -52,10 +52,7 @@ export default function WebGLCanvas({
     if (onBlendMaterialReady && blendMaterialRef) onBlendMaterialReady(blendMaterialRef);
   }, [onBlendMaterialReady, blendMaterialRef]);
   useEffect(() => {
-    if (onShaderMaterialReady && shaderMaterialRef) {
-      console.log('WebGLCanvas: Calling onShaderMaterialReady with ref:', shaderMaterialRef);
-      onShaderMaterialReady(shaderMaterialRef);
-    }
+    if (onShaderMaterialReady && shaderMaterialRef) onShaderMaterialReady(shaderMaterialRef);
   }, [onShaderMaterialReady, shaderMaterialRef]);
 
   return React.createElement('div', {

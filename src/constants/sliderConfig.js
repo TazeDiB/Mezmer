@@ -1,5 +1,5 @@
 /**
- * Slider/param config and mode constants (extracted from legacy bundle).
+ * Slider/param config and mode constants.
  */
 export const SLIDER_CONFIG = {
         symmetry: {

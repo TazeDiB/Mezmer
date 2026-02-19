@@ -9,13 +9,13 @@ mezmer-dev/
 ├── index.html              # Root HTML (Vite entry); loads only main.jsx
 ├── package.json
 ├── vite.config.js          # Vite config, dev server on port 5180
-├── scripts/                 # One-time extraction / modularization helpers
+├── scripts/                 # Extraction / modularization helpers (.cjs)
 │   ├── modularize-bundle.cjs
 │   ├── extract-app.cjs
 │   ├── extract-controls.cjs
 │   ├── extract-slider-config.cjs
 │   ├── extract-useWebGL.cjs
-│   └── remove-*.cjs
+│   └── remove-st-block.cjs, remove-e3.cjs, remove-ql-from-legacy.cjs
 ├── public/
 │   ├── electron.cjs        # Electron main process
 │   ├── preload.js          # Preload script (IPC bridge)
@@ -89,6 +89,11 @@ mezmer-dev/
 - **react-joyride** for the optional tour.
 - **Meyda** (optional) for audio analysis.
 - **Electron** for the desktop app.
+
+## Code quality
+
+- Debug `console.log` calls have been removed from app code; `console.warn` / `console.error` are kept for real errors and config issues.
+- Comments and file headers are trimmed; no legacy-bundle references in source.
 
 ## Where this came from
 

@@ -1,5 +1,5 @@
 /**
- * Small helpers (extracted from legacy).
+ * Small helpers: lerp, randomInRange, isElectron.
  */
 
 export function lerp(t, e, n) {

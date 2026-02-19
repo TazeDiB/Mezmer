@@ -1,6 +1,5 @@
 /**
  * App root: layout, WebGL canvas, controls panel, welcome/tour modal.
- * Extracted from legacy bundle.
  */
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { jsx, jsxs } from 'react/jsx-runtime';
@@ -28,7 +27,7 @@ const u3 = 2500;
 const vs = Mx;
 
 function App() {
-    const [t, e] = React.useState("layer1"), [n, r] = React.useState(!0), i = React.useMemo(() => (console.log("Recalculating patternNameToIndex map"), Mx.reduce((K, ze, be) => (K[ze] = be, K), {})), []), o = React.useMemo(() => ({
+    const [t, e] = React.useState("layer1"), [n, r] = React.useState(!0), i = React.useMemo(() => Mx.reduce((K, ze, be) => (K[ze] = be, K), {}), []), o = React.useMemo(() => ({
         invisible: [],
         wovenGrid: ["symmetry", "distortion", "layer2Freq", "weaveThickness"],
         hyperTuring: ["symmetry", "distortion", "turingScale", "turingSpeed", "turingFeed", "turingKill", "turingDiffusionA", "turingDiffusionB"],
@@ -86,15 +85,12 @@ function App() {
         [Ae, Se] = React.useState(null),
         _t = React.useRef(null),
         Mt = React.useCallback(K => {
-            console.log(">>> App received blendMaterialRef:", K), K != null && K.current ? _t.current = K.current : console.warn("Received invalid blendMaterialRef from WebGLCanvas")
+            K != null && K.current && (_t.current = K.current);
         }, []),
         wt = React.useRef(null),
         qt = React.useCallback(K => {
-            console.log(">>> App received shaderMaterialRef:", K), K != null && K.current ? wt.current = K.current : console.warn("Received invalid shaderMaterialRef from WebGLCanvas")
+            K != null && K.current && (wt.current = K.current);
         }, []);
-    React.useEffect(() => {
-        console.log("App component mounted. Checking window.electronAPI:", window.electronAPI)
-    }, []);
     const [Dt, Lt] = React.useState({
             layer1: {
                 ...mt,
@@ -152,28 +148,19 @@ function App() {
         pr = React.useCallback((K, ze) => {
             const be = Zt.current[K],
                 $e = a[K];
-            !$e && ze ? (console.log(`Starting manual blend for ${K}: ${be.patternType} -> ${ze}`), console.log(`Layer ${K} PARAMS BEFORE manual blend start:`, JSON.stringify(be)), l(at => ({
+            !$e && ze ? l(at => ({
                 ...at,
                 [K]: {
                     startTime: performance.now(),
                     fromPattern: be.patternType,
                     toPattern: ze
                 }
-            }))) : console.log(`Cannot start manual blend for ${K}`, {
-                currentProgress: $e,
-                fromPattern: be == null ? void 0 : be.patternType,
-                targetPattern: ze
-            })
+            })) : null
         }, [a]),
         T = React.useCallback((K, ze, be) => {
             const $e = Zt.current;
-            if (console.log(`handleParamChange called: param='${K}', value='${ze}', type='${be}'`), h && K !== "visualMode") {
-                console.log("Randomization in progress, most controls disabled.");
-                return
-            } else if (K === "blendAmount" && a[t]) {
-                console.log("Manual blend in progress, ignoring slider.");
-                return
-            }
+            if (h && K !== "visualMode") return;
+            if (K === "blendAmount" && a[t]) return;
             if (K === "globalColorMode") {
                 E(ze);
                 return
@@ -186,7 +173,6 @@ function App() {
                 const tt = ze,
                     qe = Q.current;
                 if (tt === qe) return;
-                console.log(`Manual Visual Mode Change: ${qe} -> ${tt}`);
                 const nt = hi[qe] ?? 0,
                     gt = hi[tt] ?? 0;
                 if (nt === gt) return;
@@ -198,11 +184,11 @@ function App() {
                 if (tt === "pixelate") {
                     const Re = St.pixelationFactor,
                         Ge = Zt.current.pixelationFactor;
-                    (typeof Ge != "number" || Ge < Re.min || Ge > Re.max) && (console.log(`Pixelation factor ${Ge} invalid for manual switch to pixelate. Resetting.`), dt.pixelationFactor = Re.min)
+                    (typeof Ge != "number" || Ge < Re.min || Ge > Re.max) && (dt.pixelationFactor = Re.min);
                 } else if (tt === "ascii") {
                     const Re = St.asciiCharSize,
                         Ge = Zt.current.asciiCharSize;
-                    (typeof Ge != "number" || Ge < Re.min || Ge > Re.max) && (console.log(`ASCII size ${Ge} invalid for manual switch to ascii. Resetting.`), dt.asciiCharSize = Re.min)
+                    (typeof Ge != "number" || Ge < Re.min || Ge > Re.max) && (dt.asciiCharSize = Re.min);
                 }
                 Lt(Re => ({
                     ...Re,
@@ -226,7 +212,7 @@ function App() {
                     const tt = $e[t].patternType,
                         qe = ze;
                     if (qe !== tt && !a[t]) {
-                        console.log(`Auto-blend triggered for ${t}: ${tt} -> ${qe}`), Lt(nt => ({
+                        Lt(nt => ({
                             ...nt,
                             [t]: {
                                 ...nt[t],
@@ -286,7 +272,7 @@ function App() {
                         patternType: Re.toPattern,
                         blendTargetType: "invisible",
                         blendAmount: 0
-                    }, console.log(`Layer ${dt} PARAMS ON manual blend complete:`, JSON.stringify(qe[dt])), nt[dt] = null, gt = !0, console.log(`Layer ${dt} manual blend completed. Finalizing state to pattern: ${Re.toPattern}.`)) : (qe[dt] = {
+                    }, nt[dt] = null, gt = !0) : (qe[dt] = {
                         blendAmount: bt
                     }, tt = !0)
                 }
@@ -324,7 +310,6 @@ function App() {
             qe = oe.current,
             nt = ie.current;
         if (U.current) {
-            console.log("handleRandomize: Already randomizing, exiting.");
             return
         }
         const dt = hi[tt] ?? 0,
@@ -343,10 +328,10 @@ function App() {
             let lt = 0,
                 kt = tt;
             for (; lt < 10 && kt === tt;) kt = Dc[Math.floor(Math.random() * Dc.length)], lt++;
-            kt !== tt ? (bt = kt, Ut = hi[bt] ?? 0, console.log(`--> Randomized Visual Mode (Rand Visual ON). Target: ${bt} (${Ut})`)) : console.log(`--> Kept Visual Mode (Rand Visual ON, but randomly same). Target: ${bt} (${Ut})`)
-        } else console.log(`--> Kept Visual Mode (Rand Visual OFF). Target: ${bt} (${Ut})`);
+            kt !== tt ? (bt = kt, Ut = hi[bt] ?? 0) : null;
+        }
         const Rt = be || K;
-        console.log(`Randomizing... Checkbox: ${be}, ForceInclude: ${K}, ActualInclude: ${Rt}`), Rt ? (Va.forEach(lt => {
+        Rt ? (Va.forEach(lt => {
             if (lt !== "blendSpeedFactor" && lt !== "pixelationFactor" && lt !== "asciiCharSize" && lt !== "rainbowAnimationSpeed" && St[lt] && Re.hasOwnProperty(lt)) {
                 let kt = Rr(St[lt]);
                 const gn = St[lt];
@@ -370,9 +355,9 @@ function App() {
                 }
                 Ee[lt] = kt
             } else lt === "blendSpeedFactor" && Re.hasOwnProperty(lt) && (Ee[lt] = Re[lt])
-        }), $e ? (Wt = Bi[Math.floor(Math.random() * Bi.length)], console.log(`--> Randomized Global Color (Globals ON, ColRand ON). Target: ${Wt}`)) : console.log(`--> Kept Global Color (Globals ON, ColRand OFF). Target: ${Wt}`), Ee.globalColorMode = Wt, Ee.forceGlobalColor = nt, St.rainbowAnimationSpeed && Re.hasOwnProperty("rainbowAnimationSpeed") && (Ee.rainbowAnimationSpeed = Rr(St.rainbowAnimationSpeed)), console.log("--> Randomized Other Numeric Globals.")) : (Va.forEach(lt => {
+        }), $e ? (Wt = Bi[Math.floor(Math.random() * Bi.length)]) : null, Ee.globalColorMode = Wt, Ee.forceGlobalColor = nt, St.rainbowAnimationSpeed && Re.hasOwnProperty("rainbowAnimationSpeed") && (Ee.rainbowAnimationSpeed = Rr(St.rainbowAnimationSpeed))) : (Va.forEach(lt => {
             Re.hasOwnProperty(lt) && (Ee[lt] = Re[lt])
-        }), Ee.globalColorMode = qe, Ee.forceGlobalColor = nt, console.log("--> Kept All Globals.")), Ee.visualModeFromIndex = dt, Ee.visualModeToIndex = Ut, Ee.visualModeBlend = 0, bt === "pixelate" ? (Ee.pixelationFactor = Rr(St.pixelationFactor), console.log(`--> Set Pixelation Factor (Mode is Pixelate): ${Ee.pixelationFactor.toFixed(2)}`), Ee.hasOwnProperty("asciiCharSize") || (Ee.asciiCharSize = ((da = St.asciiCharSize) == null ? void 0 : da.default) ?? 12)) : bt === "ascii" ? (Ee.asciiCharSize = Rr(St.asciiCharSize), console.log(`--> Set ASCII Char Size (Mode is ASCII): ${Ee.asciiCharSize.toFixed(2)}`), Ee.hasOwnProperty("pixelationFactor") || (Ee.pixelationFactor = ((ha = St.pixelationFactor) == null ? void 0 : ha.default) ?? 100)) : (Ee.hasOwnProperty("pixelationFactor") || (Ee.pixelationFactor = ((pa = St.pixelationFactor) == null ? void 0 : pa.default) ?? 100, console.log("--> Pixelation Factor defaulted (Mode not Pixelate)")), Ee.hasOwnProperty("asciiCharSize") || (Ee.asciiCharSize = ((ma = St.asciiCharSize) == null ? void 0 : ma.default) ?? 12, console.log("--> ASCII Char Size defaulted (Mode not ASCII)")), console.log(`--> Kept/Randomized Factors: Pixel=${(ga=Ee.pixelationFactor)==null?void 0:ga.toFixed(2)}, ASCII=${(va=Ee.asciiCharSize)==null?void 0:va.toFixed(2)} (Mode is ${bt})`));
+        }), Ee.globalColorMode = qe, Ee.forceGlobalColor = nt), Ee.visualModeFromIndex = dt, Ee.visualModeToIndex = Ut, Ee.visualModeBlend = 0, bt === "pixelate" ? (Ee.pixelationFactor = Rr(St.pixelationFactor), Ee.hasOwnProperty("asciiCharSize") || (Ee.asciiCharSize = ((da = St.asciiCharSize) == null ? void 0 : da.default) ?? 12)) : bt === "ascii" ? (Ee.asciiCharSize = Rr(St.asciiCharSize), Ee.hasOwnProperty("pixelationFactor") || (Ee.pixelationFactor = ((ha = St.pixelationFactor) == null ? void 0 : ha.default) ?? 100)) : (Ee.hasOwnProperty("pixelationFactor") || (Ee.pixelationFactor = ((pa = St.pixelationFactor) == null ? void 0 : pa.default) ?? 100), Ee.hasOwnProperty("asciiCharSize") || (Ee.asciiCharSize = ((ma = St.asciiCharSize) == null ? void 0 : ma.default) ?? 12));
         for (let lt = 1; lt <= 4; lt++) {
             const kt = `layer${lt}`,
                 gn = Ct[kt],
@@ -380,7 +365,6 @@ function App() {
             if (!gn || !Jt) continue;
             const wn = vs[Math.floor(Math.random() * vs.length)];
             if (wn === "invisible") {
-                console.log(`Layer ${lt}: Target is invisible. Keeping current params and fading out.`);
                 const It = {
                     ...Jt
                 };
@@ -398,7 +382,7 @@ function App() {
                 const ai = cd[Math.floor(Math.random() * cd.length)];
                 It.blendTargetType = ai, It.blendAmount = 0, St.symmetry && It.hasOwnProperty("symmetry") && (It.symmetry = Math.round(Rr(St.symmetry))), St.distortion && It.hasOwnProperty("distortion") && (It.distortion = Rr(St.distortion));
                 const mo = s(wn);
-                console.log(`Layer ${lt} (${wn}), relevant:`, mo), mo.forEach(Ot => {
+                mo.forEach(Ot => {
                     if (Ot !== "symmetry" && Ot !== "distortion" && St[Ot] && It.hasOwnProperty(Ot)) {
                         const Hr = Ot === "freq" || Ot === "layer2Freq" ? "layer2Freq" : Ot;
                         if (St[Hr]) {
@@ -443,7 +427,6 @@ function App() {
             }
         }
         if ([1, 2, 3, 4].every(lt => Ee[`layer${lt}`].patternType === "invisible")) {
-            console.log("All randomized layers were invisible. Forcing layer1 to be visible.");
             const lt = vs.filter(Jt => Jt !== "invisible"),
                 kt = lt[Math.floor(Math.random() * lt.length)];
             Ee.layer1.patternType = kt, s(kt).forEach(Jt => {
@@ -453,7 +436,7 @@ function App() {
                 }
             }), St.symmetry && Ee.layer1.hasOwnProperty("symmetry") && (Ee.layer1.symmetry = Math.round(Rr(St.symmetry))), St.distortion && Ee.layer1.hasOwnProperty("distortion") && (Ee.layer1.distortion = Rr(St.distortion))
         }
-        console.log("FINAL Target Params (including visual mode indices):", Ee), O.current = {
+        O.current = {
             ...Re
         };
         const bn = {
@@ -463,7 +446,7 @@ function App() {
             const kt = `layer${lt}`,
                 gn = bn[kt],
                 Jt = Ee[kt];
-            gn && Jt && gn.patternType === "invisible" && Jt.patternType !== "invisible" && (console.log(`Layer ${kt}: Blending IN from invisible. Resetting initial speed to 0.`), bn[kt] = {
+            gn && Jt && gn.patternType === "invisible" && Jt.patternType !== "invisible" && (bn[kt] = {
                 ...gn,
                 layerSymmetryOffsetSpeed: 0
             })
@@ -478,7 +461,6 @@ function App() {
         const K = M,
             ze = typeof K == "number" && K > 0 ? K : 1,
             be = Math.max(50, c3 / ze);
-        console.log(`Randomization Animation Effect Started (Duration: ${be}ms, SpeedFactor: ${ze})`);
         let $e = !0;
         const at = tt => {
             if (!$e) return;
@@ -511,7 +493,7 @@ function App() {
                     }
                     return Ge
                 }), gt >= 1) {
-                console.log("Randomization Animation: Setting final state."), Lt(Ct => {
+                Lt(Ct => {
                     const Ee = {
                             ...Ct
                         },
@@ -537,19 +519,18 @@ function App() {
                 }), p(!1);
                 const Re = (g == null ? void 0 : g.visualModeToIndex) ?? 0,
                     Ge = Object.keys(hi).find(Ct => hi[Ct] === Re) || "normal";
-                console.log(`Randomization finished. Setting visual mode state to: ${Ge}`), w(Ge), $e = !1, cancelAnimationFrame(c.current)
+                w(Ge), $e = !1, cancelAnimationFrame(c.current)
             } else c.current = requestAnimationFrame(at)
         };
         return c.current = requestAnimationFrame(at), () => {
-            console.log("Randomization Animation Cleanup"), $e = !1, cancelAnimationFrame(c.current)
+            $e = !1, cancelAnimationFrame(c.current)
         }
     }, [h, g, M]);
     const _e = React.useCallback(async () => {
             if (window.electronAPI && window.electronAPI.getDesktopSources) {
-                console.log("Requesting desktop sources...");
                 try {
                     const K = await window.electronAPI.getDesktopSources();
-                    console.log("Received sources:", K), ve(K), Se(null)
+                    ve(K), Se(null)
                 } catch (K) {
                     console.error("Error getting desktop sources:", K), Se("Failed to get sources: " + K.message), ve([])
                 }
@@ -558,14 +539,14 @@ function App() {
         Ne = React.useCallback(async () => {
             var be;
             if (!Me) {
-                console.log("handleStartCapture: Aborted - No source selected."), Se("Please select an audio source.");
+                Se("Please select an audio source.");
                 return
             }
             const K = X.find($e => $e.id === Me),
                 ze = K ? K.name : "Unknown Name";
-            console.log(`Attempting to capture source: ${Me} (Name: "${ze}")`), console.log(`Current isPlaying state: ${ln}`), Se(null);
+            Se(null);
             try {
-                ln && (console.log("handleStartCapture: Stopping audio file playback."), rr()), (be = Nt.current) != null && be.src && Nt.current.src.startsWith("blob:") && (console.log("handleStartCapture: Revoking old audio file URL."), URL.revokeObjectURL(Nt.current.src), Nt.current.src = ""), console.log("handleStartCapture: Calling getUserMedia...");
+                ln && rr(), (be = Nt.current) != null && be.src && Nt.current.src.startsWith("blob:") && (URL.revokeObjectURL(Nt.current.src), Nt.current.src = "");
                 const $e = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         mandatory: {
@@ -580,16 +561,16 @@ function App() {
                         }
                     }
                 });
-                console.log("Desktop stream acquired (contains audio+video tracks):", $e), C($e), te(!0)
+                C($e), te(!0)
             } catch ($e) {
                 console.error("handleStartCapture: Error during getUserMedia or stream handling:", $e), Se(`Capture failed: ${$e.message}`), te(!1), C(null)
             }
         }, [Me, ln, rr, Nt, X]),
         Ve = React.useCallback(() => {
-            console.log("Stopping desktop capture..."), le && (le.getTracks().forEach(K => K.stop()), console.log("Desktop stream tracks stopped.")), C(null), te(!1), Se(null)
+            le && le.getTracks().forEach(K => K.stop()), C(null), te(!1), Se(null)
         }, [le]),
         We = React.useCallback((K, ze, be) => {
-            console.log(`>>> Starting Auto-Randomize Timer (Mode: ${K}, Time: ${ze}s, Measures: ${be})`), clearTimeout(he.current), De.current = performance.now(), ke.current = 0, de.current = 0, Be.current = 0, we.current = performance.now();
+            clearTimeout(he.current), De.current = performance.now(), ke.current = 0, de.current = 0, Be.current = 0, we.current = performance.now();
             const $e = () => {
                 const at = se.current,
                     tt = ye.current,
@@ -600,7 +581,7 @@ function App() {
                     Re = U.current,
                     Ge = Ye.current;
                 if (Ie.current, vt.current, !He.current) {
-                    console.log(">>> Auto-Randomize globally disabled. Stopping timer."), clearTimeout(he.current);
+                    clearTimeout(he.current);
                     return
                 }
                 const Ee = performance.now(),
@@ -609,47 +590,43 @@ function App() {
                 let Ut = !1;
                 const Wt = !Re && !Ge;
                 if (nt === "time") {
-                    console.log(`AutoRand Tick (Time): isPlaying=${at}, isCapturing=${tt}, deltaTime=${bt.toFixed(4)}`), Be.current += bt;
+                    Be.current += bt;
                     const Rt = gt;
-                    console.log(`AutoRand Tick (Time Mode): Accumulated: ${Be.current.toFixed(2)}s / ${Rt.toFixed(1)}s`), Be.current >= Rt && (console.log(`Time interval (${Rt.toFixed(1)}s) reached. Accumulated: ${Be.current.toFixed(1)}s`), Wt ? Ut = !0 : console.log(`>>> Time interval met, but deferred (isRandomizing=${Re}, isBlending=${Ge})`), Be.current = 0)
+                    Be.current >= Rt && (Wt ? Ut = !0 : null, Be.current = 0)
                 } else if (nt === "bpm")
                     if ((at || tt) && qe > 0) {
                         const Rt = 6e4 / qe;
                         if (Rt > 0) {
                             const Xn = Rt * 4;
                             if (Ee - de.current >= Xn) {
-                                ke.current++, de.current = Ee, console.log(`Measure ${ke.current} started.`);
+                                ke.current++, de.current = Ee;
                                 const bn = dt;
-                                ke.current >= bn && (console.log(`Target measures (${bn}) reached.`), Wt ? Ut = !0 : console.log(`>>> Target measures met, but deferred (isRandomizing=${Re}, isBlending=${Ge})`), ke.current = 0)
+                                ke.current >= bn && (Wt ? Ut = !0 : null, ke.current = 0)
                             }
                         } else de.current = 0
                     } else de.current = 0;
-                Ut && (console.log(`>>> Auto-Randomizing NOW (Mode: ${nt})`), k(!0), De.current = Ee), he.current = setTimeout($e, 100)
+                Ut && (k(!0), De.current = Ee), he.current = setTimeout($e, 100)
             };
             he.current = setTimeout($e, 100)
         }, [k]);
     React.useEffect(() => {
         $.current = M, Q.current = A, ht.current = Dt.pixelationFactor, oe.current = L, ie.current = S, U.current = h, pe.current = it, Ie.current = jn, vt.current = yt, se.current = ln, ye.current = (re && typeof re === "object" && "current" in re ? re.current : re) ?? 0, je.current = D, Je.current = Y, st.current = xe, Ye.current = ge, He.current = b, Zt.current = Dt
-    }, [M, A, L, S, h, it, jn, yt, ln, re, D, Y, xe, ge, b, Dt]), React.useEffect(() => (console.log(`Timer useEffect RUNNING: isPlaying=${ln}, isCapturing=${re}`), console.log(`Timer useEffect Triggered: Enabled=${b}, Mode=${Y}, TimeInterval=${xe}, Interval=${D}`), b ? We(Y, xe, D) : (console.log(">>> Stopping Auto-Randomize Timer (disabled)."), clearTimeout(he.current)), () => {
-        console.log(">>> CLEANUP Auto-Randomize Timer Effect"), clearTimeout(he.current)
-    }), [b, Y, xe, D, We]), React.useEffect(() => () => {
-        le && (console.log("App unmounting, stopping desktop stream tracks."), le.getTracks().forEach(K => K.stop()))
+    }, [M, A, L, S, h, it, jn, yt, ln, re, D, Y, xe, ge, b, Dt]), React.useEffect(() => (b ? We(Y, xe, D) : clearTimeout(he.current), () => clearTimeout(he.current)), [b, Y, xe, D, We]), React.useEffect(() => () => {
+        le && le.getTracks().forEach(K => K.stop())
     }, [le]);
     const Ze = React.useCallback(K => {
-        console.log(`App.jsx: handleSourceSelected called with ID: "${K}"`), et(K)
+        et(K)
     }, []);
     React.useEffect(() => {
         if (X.length > 0 && !Me) {
-            console.log("App.jsx: useEffect setting initial source ID based on loaded sources.");
             const K = X.find(be => be.id.startsWith("screen:")),
                 ze = K ? K.id : X[0].id;
-            et(ze), console.log(`App.jsx: Initial source ID set to: ${ze}`)
+            et(ze)
         }
-    }, [X]), console.log(`App Render: isPlaying=${ln}, isCapturing=${re}`), React.useEffect(() => {
+    }, [X]), React.useEffect(() => {
         var be;
         const K = ln || re;
         if ((se.current || ye.current) && !K) {
-            console.log("Audio source stopped. Checking for active audio-reactive color modes...");
             let $e = !1,
                 at = {
                     ...Zt.current
@@ -657,13 +634,13 @@ function App() {
             for (let qe = 1; qe <= 4; qe++) {
                 const nt = `layer${qe}`,
                     gt = (be = at[nt]) == null ? void 0 : be.colorMode;
-                gt && j0.includes(gt) && (console.log(`Layer ${qe} has audio-reactive mode '${gt}'. Resetting to 'rainbow'.`), at[nt] && (at[nt] = {
+                gt && j0.includes(gt) && (at[nt] && (at[nt] = {
                     ...at[nt],
                     colorMode: "rainbow"
                 }, $e = !0))
             }
             const tt = oe.current;
-            !ie.current && j0.includes(tt) && (console.log(`Global color mode is audio-reactive '${tt}'. Resetting to 'rainbow'.`), E("rainbow")), $e && (console.log("Applying layer color mode resets..."), Lt(at))
+            !ie.current && j0.includes(tt) && E("rainbow"), $e && Lt(at)
         }
     }, [ln, re, Lt, E]), React.useEffect(() => {
         if (!I) {
@@ -683,7 +660,7 @@ function App() {
             Lt(Re => ({
                 ...Re,
                 visualModeBlend: dt
-            })), gt >= 1 ? (console.log("Manual visual mode animation completed."), j(null), ze = !1, Lt(Re => ({
+            })), gt >= 1 ? (j(null), ze = !1, Lt(Re => ({
                 ...Re,
                 visualModeBlend: 1
             }))) : c.current = requestAnimationFrame(be)
@@ -711,7 +688,7 @@ function App() {
                 status: $e,
                 type: at
             } = K;
-            [EVENTS.TOUR_END, EVENTS.STEP_AFTER].includes(at) ? ($e === STATUS.FINISHED || $e === STATUS.SKIPPED) && (Xe(!1), localStorage.setItem($e === STATUS.FINISHED ? "tutorialCompleted" : "tutorialSkipped", "true")) : [EVENTS.TOOLTIP_CLOSE].includes(at) && (console.log(`Joyride: Tooltip closed - Status: ${$e}, Action: ${ze}, Index: ${be}`), ze === ACTIONS.CLOSE && (Xe(!1), localStorage.setItem("tutorialSkipped", "true")))
+            [EVENTS.TOUR_END, EVENTS.STEP_AFTER].includes(at) ? ($e === STATUS.FINISHED || $e === STATUS.SKIPPED) && (Xe(!1), localStorage.setItem($e === STATUS.FINISHED ? "tutorialCompleted" : "tutorialSkipped", "true")) : [EVENTS.TOOLTIP_CLOSE].includes(at) && ze === ACTIONS.CLOSE && (Xe(!1), localStorage.setItem("tutorialSkipped", "true"))
         }, []);
     return jsxs("div", {
         className: To.appContainer,
