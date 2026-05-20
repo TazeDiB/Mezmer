@@ -3,1332 +3,104 @@
  */
 import * as THREE from 'three';
 import React from 'react';
-
-var yL = `varying vec2 vUv;
-
-void main() {\r
-  vUv = uv;\r
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r
-}`,
-    SL = `precision mediump float; 
-
-varying highp vec2 vUv; 
-
-uniform float u_time;
-uniform highp vec2 u_resolution; 
-uniform highp sampler2D u_audio_texture; 
-uniform int u_frequency_bin_count; 
-uniform highp sampler2D u_feedback_texture; 
-uniform float u_feedback_mix;
-uniform highp sampler2D u_gradient_texture; 
-uniform highp sampler2D u_fire_gradient_texture; 
-uniform highp sampler2D u_ice_gradient_texture; 
-
-uniform float u_globalTimeScale;          
-uniform float u_globalDistortionScale;    
-uniform float u_globalSymmetryOffsetSpeed; 
-uniform float u_uvScale;                
-uniform float u_globalAudioSensitivity;   
-uniform float u_rainbowAnimationSpeed;     
-uniform float u_rainbowPhase;          
-
-uniform float u_integratedTime;
-
-uniform int u_visualMode;
-uniform float u_pixelationFactor;
-uniform float u_asciiCharSize; 
-
-uniform int u_visualModeFromIndex;
-uniform int u_visualModeToIndex;
-uniform float u_visualModeBlend; 
-
-uniform bool u_forceGlobalColor;
-uniform int u_globalColorMode; 
-
-uniform float u_bpm;
-
-uniform float u_isBassPresent;  
-uniform float u_isDrumsPresent; 
-
-uniform float u_beatStrength;     
-uniform float u_spectralCentroid; 
-
-struct LayerParams {
-    bool enabled;
-    int patternType;
-    float symmetry;
-    float radius;
-    float thickness;
-    float power;
-    float zoom;
-    float centerX;
-    float centerY;
-    float distortionStrength;
-    float distortionFrequency;
-    float distortionSpeed;
-    float moireFrequency;
-    float moireAmplitude;
-    float rotationSpeed;
-    vec3 color1;
-    vec3 color2;
-    vec3 color3;
-    float colorScale;
-    float colorShift;
-    float colorFrequency;
-    float colorSpeed;
-    float colorPower;
-    int colorMode;
-    float noiseStrength;
-    float noiseScale;
-    float noiseSpeed;
-    float flowSpeed;
-    float flowComplexity;
-    float flowCurl;
-    float layerSymmetryOffsetSpeed;
-    int blendTargetType;
-    float blendAmount;
-    int blendTargetColorMode;
-    float audioSensitivity;
-    float bassSensitivity;
-    float midSensitivity;
-    float highSensitivity;
-    float freq;
-    float weaveThickness;
-    float turingScale;
-    float turingSpeed;
-    float turingFeed;
-    float turingKill;
-    float turingDiffusionA;
-    float turingDiffusionB;
-    float voronoiScale;
-    float voronoiEdgeWidth;
-    float spiralArms;
-    float spiralTightness;
-    float spiralNoiseScale;
-    float spiralNoiseSpeed;
-    float rdComplexity;
-    float rdSpotSize;
-    float cubeRotationSpeed;
-    float cubeSize;
-    float accumulatedSymmetryAngle;
-};
-
-uniform LayerParams u_layers[4]; 
-
-const float PI = 3.14159265359;
-const float TAU = PI * 2.0;
-
-const int PATTERN_INVISIBLE = 0;
-const int PATTERN_WOVENGRID = 1; 
-const int PATTERN_HYPERTURING = 2; 
-const int PATTERN_HYPERVORONOI = 3;
-const int PATTERN_SPIRALARMS = 4;
-const int PATTERN_REACTIONDIFF = 5;
-const int PATTERN_HYPERFLOW = 6;
-
-const int PATTERN_CUBEGRID = 7; 
-
-const int MODE_NORMAL = 0;
-const int MODE_GLOW = 1;
-const int MODE_EDGEDETECT = 2;
-const int MODE_PIXELATE = 3;
-const int MODE_MOIRE = 4;
-
-const int MODE_CARTOON = 5;
-const int MODE_HASHGRID = 6;
-const int MODE_ASCII = 7;
-const int MODE_STAINED_GLASS = 8; 
-
-const int COLOR_MODE_RAINBOW = 0;
-const int COLOR_MODE_FIRE = 1;
-const int COLOR_MODE_ICE = 2;
-const int COLOR_MODE_MONOCHROME = 3;
-
-const int COLOR_MODE_AUDIO_RGB = 4;
-
-const int COLOR_MODE_SPECTRUM = 5;
-const int COLOR_MODE_REACTIVE_PULSE = 6;
-const int COLOR_MODE_VELOCITY = 7;
-
-const float MAX_ANGULAR_VELOCITY = 15.0; 
-
-const float BASS_END = 0.1;  
-const float MID_END = 0.4;   
-
-highp vec2 complex_mult(highp vec2 a, highp vec2 b) { 
-    return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
-}
-
-highp vec2 complex_pow(highp vec2 base, float exp_float) { 
-    
-    
-    int exp = int(max(1.0, floor(exp_float + 0.001)));
-
-    highp vec2 result = vec2(1.0, 0.0);
-    highp vec2 current_power = base;
-
-    while (exp > 0) {
-        if (int(mod(float(exp), 2.0)) == 1) { 
-            result = complex_mult(result, current_power);
-        }
-        current_power = complex_mult(current_power, current_power); 
-        exp /= 2; 
-    }
-    return result;
-}
-
-mat2 rotate(float angle) {
-    float s = sin(angle);
-    float c = cos(angle);
-    return mat2(c, -s, s, c);
-}
-
-float hash11(highp vec2 p) { 
-    
-    float sin_res = sin(dot(p, vec2(12.9898, 78.233)));
-    return fract(sin_res * 43758.5453);
-}
-
-float noise(highp vec2 p) { 
-    highp vec2 i = floor(p);
-    highp vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f); 
-
-    float a = hash11(i + vec2(0.0, 0.0));
-    float b = hash11(i + vec2(1.0, 0.0));
-    float c = hash11(i + vec2(0.0, 1.0));
-    float d = hash11(i + vec2(1.0, 1.0));
-
-    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
-
-float fbm(highp vec2 p) { 
-    float v = 0.0;
-    float a = 0.5;
-    mat2 rot = rotate(0.5); 
-    for (int i = 0; i < 5; ++i) { 
-        v += a * noise(p);
-        p = rot * p * 2.0; 
-        a *= 0.5; 
-    }
-    return v;
-}
-
-highp vec2 hash22(highp vec2 p) { 
-    p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
-    return fract(sin(p) * 43758.5453);
-}
-
-highp vec2 voronoi(highp vec2 x, float integratedTimeOffset, float bass, float high) { 
-    
-    
-    float bassPulse = pow(bass, 2.0) * 2.5; 
-    float timeOffsetMagnitude = 0.3 + bassPulse * 0.2;
-    highp vec2 timeDependentOffset = vec2(cos(integratedTimeOffset * 0.8), sin(integratedTimeOffset * 0.6)) * timeOffsetMagnitude;
-    x += timeDependentOffset;
-
-    
-    const float EPSILON = 1e-5;
-    x += EPSILON;
-
-    highp vec2 n = floor(x); 
-    highp vec2 f = fract(x); 
-
-    float md = 8.0; 
-    float md2 = 8.0; 
-
-    for (int j = -1; j <= 1; j++) {
-        for (int i = -1; i <= 1; i++) {
-            vec2 g = vec2(float(i), float(j)); 
-            
-            highp vec2 o = hash22(n + g); 
-
-            
-            
-            
-            float internalTime = integratedTimeOffset * (1.2 + high * 8.0); 
-
-            
-            
-            
-            
-            
-            float animMag = 0.03 + bass * 0.18; 
-            highp vec2 animOffset = vec2(sin(o.x * TAU + internalTime), cos(o.y * TAU - internalTime * 0.7)) * animMag;
-
-            highp vec2 r = g + o + animOffset - f; 
-            float d = dot(r, r); 
-
-            if (d < md) {
-                md2 = md; 
-                md = d;   
-            } else if (d < md2) {
-                md2 = d; 
-            }
-        }
-    }
-    return vec2(sqrt(md), sqrt(md2)); 
-}
-
-float sampleAudio(float coord) {
-    float clampedCoord = clamp(coord, 0.0, 1.0);
-    
-    return texture(u_audio_texture, vec2(clampedCoord, 0.5)).r / 255.0;
-}
-
-float getAudioBandLevel(float startFreqNorm, float endFreqNorm) {
-    float level = 0.0;
-    int startBin = int(float(u_frequency_bin_count) * startFreqNorm);
-    int endBin = int(float(u_frequency_bin_count) * endFreqNorm);
-    int numSamples = max(1, endBin - startBin); 
-
-    
-    
-    for (int i = startBin; i < endBin; ++i) {
-        
-        if (i >= u_frequency_bin_count) break;
-        level += sampleAudio(float(i) / float(u_frequency_bin_count));
-    }
-    return level / float(numSamples);
-}
-
-mat3 rotateX(float angle) {
-    float s = sin(angle);
-    float c = cos(angle);
-    return mat3(
-        1.0, 0.0, 0.0,
-        0.0, c,  -s,
-        0.0, s,   c
-    );
-}
-
-mat3 rotateY(float angle) {
-    float s = sin(angle);
-    float c = cos(angle);
-    return mat3(
-        c,   0.0, s,
-        0.0, 1.0, 0.0,
-        -s,  0.0, c
-    );
-}
-
-float hash31(vec3 p) {
-    
-    
-    p = fract(p * vec3(0.1031, 0.1030, 0.0973));
-    p += dot(p, p.yzx + 19.19);
-    return fract((p.x + p.y) * p.z);
-}
-
-float sdBox(highp vec3 p, vec3 b) { 
-    highp vec3 q = abs(p) - b;
-    return length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
-}
-
-float sdBoxRotated(highp vec3 p, vec3 b, mat3 rotMat) { 
-    mat3 rotMatInv = transpose(rotMat); 
-    highp vec3 p_local = rotMatInv * p;    
-    return sdBox(p_local, b);        
-}
-
-const int MAX_STEPS = 64;        
-const float MAX_DIST = 10.0;
-const float HIT_THRESHOLD = 0.001;
-
-highp vec2 complexDistortion(highp vec2 p_sym, highp vec2 p_orig, float distortionAmount, float integratedTime, float bass, float mid, float high) { 
-    
-    float audioDistortionBoost = pow(bass, 1.5) * 1.5; 
-    float midComplexityBoost = mid * 3.0; 
-
-    float scaledDistortion = (distortionAmount + audioDistortionBoost) * 0.5;
-    float radius = length(p_orig);
-
-    
-    float swirlSpeedFactor = 1.0 + high * 2.0;
-    float swirlAngle = scaledDistortion * radius * 5.0 * swirlSpeedFactor;
-    mat2 swirlMatrix = rotate(swirlAngle);
-    highp vec2 swirledP = swirlMatrix * p_sym;
-
-    
-    float waveOffsetScale = 0.15 * scaledDistortion * (1.0 + bass * 3.0); 
-    float waveFreq = 6.0 + midComplexityBoost * 5.0; 
-
-    highp vec2 waveOffset = vec2(
-        sin(swirledP.y * waveFreq + integratedTime * (0.8 + mid * 0.5)), 
-        cos(swirledP.x * waveFreq - integratedTime * (0.5 + high * 0.3)) 
-    ) * waveOffsetScale;
-    return swirledP + waveOffset;
-}
-
-highp vec2 applySymmetry(highp vec2 p, float n, float angleOffset, float mid, float high, float integratedTime) { 
-    
-    
-    float audioSymmetryMod = 1.0 + sin(integratedTime * 0.5 + mid * PI) * 0.02 * mid + cos(integratedTime * 0.8 - high * PI) * 0.03 * high;
-    float effectiveN = n * audioSymmetryMod;
-
-    if (effectiveN <= 1.001) { 
-        return p;
-    }
-    float radius = length(p);
-    if (radius < 0.0001) return vec2(0.0);
-
-    highp vec2 p_norm = p / radius;
-    highp vec2 rotation_offset = vec2(cos(angleOffset), sin(angleOffset));
-    highp vec2 p_norm_offset = complex_mult(p_norm, rotation_offset);
-
-    
-    
-    float angle = atan(p_norm_offset.y, p_norm_offset.x);
-
-    
-    float new_angle = angle * effectiveN; 
-
-    
-    highp vec2 final_norm = vec2(cos(new_angle), sin(new_angle));
-
-    
-    return final_norm * radius;
-}
-
-vec3 textureBlur(highp sampler2D tex, highp vec2 uv, highp vec2 resolution, float blurAmount) {
-    vec3 col = vec3(0.0);
-    highp vec2 pixelSize = 1.0 / resolution * blurAmount;
-    
-    col += texture(tex, uv + vec2(-pixelSize.x, -pixelSize.y)).rgb;
-    col += texture(tex, uv + vec2( 0.0,       -pixelSize.y)).rgb;
-    col += texture(tex, uv + vec2( pixelSize.x, -pixelSize.y)).rgb;
-    col += texture(tex, uv + vec2(-pixelSize.x,  0.0)).rgb;
-    col += texture(tex, uv + vec2( 0.0,        0.0)).rgb;
-    col += texture(tex, uv + vec2( pixelSize.x,  0.0)).rgb;
-    col += texture(tex, uv + vec2(-pixelSize.x,  pixelSize.y)).rgb;
-    col += texture(tex, uv + vec2( 0.0,        pixelSize.y)).rgb;
-    col += texture(tex, uv + vec2( pixelSize.x,  pixelSize.y)).rgb;
-    return col / 9.0;
-}
-
-float sobelEdgeDetect(highp sampler2D tex, highp vec2 uv, highp vec2 resolution) {
-    highp vec2 pixelSize = 1.0 / resolution;
-    
-    float tl = texture(tex, uv + vec2(-pixelSize.x, -pixelSize.y)).r;
-    float t  = texture(tex, uv + vec2( 0.0,       -pixelSize.y)).r;
-    float tr = texture(tex, uv + vec2( pixelSize.x, -pixelSize.y)).r;
-    float l  = texture(tex, uv + vec2(-pixelSize.x,  0.0)).r;
-    float r  = texture(tex, uv + vec2( pixelSize.x,  0.0)).r;
-    float bl = texture(tex, uv + vec2(-pixelSize.x,  pixelSize.y)).r;
-    float b  = texture(tex, uv + vec2( 0.0,        pixelSize.y)).r;
-    float br = texture(tex, uv + vec2( pixelSize.x,  pixelSize.y)).r;
-    float gx = -tl - 2.0 * l - bl + tr + 2.0 * r + br;
-    float gy = -tl - 2.0 * t - tr + bl + 2.0 * b + br;
-    return length(vec2(gx, gy));
-}
-
-float pattern_wovenGrid(highp vec2 transformed_p, float integratedTime, float freq, float weaveThickness, float bass, float mid, float high, float overallAudio) {
-    
-    
-    
-    float modulatedFreq = freq + high * 60.0 + mid * 20.0 + u_spectralCentroid * 30.0 + u_beatStrength * 15.0; 
-    
-    float modulatedThickness = weaveThickness + pow(bass, 1.5) * 0.08 + mid * 0.03 + u_beatStrength * 0.04; 
-
-    float r2=dot(transformed_p, transformed_p);
-    highp vec2 hp=transformed_p*(2.0/(1.0+r2));
-    hp *= modulatedFreq * 0.5;
-
-    
-    float timeSpeedFactor = 1.0 + mid * 1.5 + high * 0.8 + u_spectralCentroid * 0.5;
-    float wt = integratedTime * 0.3 * timeSpeedFactor;
-    float bassOffsetMag = bass * 0.15; 
-
-    highp vec2 hp1 = rotate(wt*0.2)*(hp+vec2(0.1 + bassOffsetMag * cos(wt), bassOffsetMag * sin(wt*1.2)));
-    highp vec2 hp2 = rotate(-wt*0.2)*(hp-vec2(0.1 + bassOffsetMag * cos(wt*0.9), bassOffsetMag * sin(wt*1.1)));
-    float v1 = sin(hp1.x*PI + cos(hp1.y*PI*0.5+wt) + mid * PI); 
-    float v2 = sin(hp2.y*PI + sin(hp2.x*PI*0.5-wt) + high * PI * 0.8); 
-
-    float diff = abs(v1 - v2);
-    
-    float sharpness = 0.5 + bass * 1.5 + u_beatStrength * 0.8;
-    return 1.0 - smoothstep(modulatedThickness * sharpness * 0.5, modulatedThickness * sharpness * 1.5, diff);
-}
-
-float pattern_hyperTuring(highp vec2 p, float accumulatedTuringTime, 
-                         float scale, float feed, float kill,
-                         float diffA, float diffB,
-                         float bass, float mid, float high, float overallAudio) {
-
-    
-    
-    float modulatedScale = max(0.01, scale + pow(overallAudio, 0.8) * 2.5 + mid * 1.5); 
-    float timeSpeedFactor = 1.0 + high * 2.0; 
-    float timeScaled = accumulatedTuringTime * 0.2 * timeSpeedFactor;
-
-    
-    highp vec2 audioOffsetA = vec2(bass * 0.3 * cos(timeScaled * 0.5), mid * 0.25 * sin(timeScaled * 0.7));
-    highp vec2 audioOffsetB = vec2(high * 0.2 * sin(timeScaled * -0.4), bass * 0.35 * cos(timeScaled * 0.6));
-    
-    
-    
-    float baseDiffAMod = mix(0.7, 1.3, diffA);
-    float baseDiffBMod = mix(0.7, 1.3, diffB);
-    float diffAMod = clamp(baseDiffAMod * (1.0 + bass * 0.4 - mid * 0.2), 0.5, 1.5); 
-    float diffBMod = clamp(baseDiffBMod * (1.0 - bass * 0.3 + mid * 0.5), 0.5, 1.5); 
-
-    highp vec2 pA = p * modulatedScale * diffAMod + vec2(timeScaled * 0.5, -timeScaled * 0.3) + audioOffsetA;
-    highp vec2 pB = p * modulatedScale * diffBMod + vec2(-timeScaled * 0.2, timeScaled * 0.6) + audioOffsetB;
-
-    float noiseA = fbm(pA);
-    float noiseB = fbm(pB);
-
-    
-    
-    float killMod = clamp(kill + bass * 0.6, 0.0, 1.0); 
-    float feedMod = clamp(feed + high * 0.9 + mid * 0.3, 0.0, 1.0); 
-    
-    
-    float modulatedThreshold = mix(0.1, 0.5, killMod); 
-    
-    
-    float modulatedContrast = mix(0.5, 1.8, feedMod); 
-
-    
-    float noiseDiff = (noiseA - noiseB);
-    
-    
-    float absNoiseDiff = abs(noiseDiff); 
-    float contrastedAbsDiff = absNoiseDiff * modulatedContrast; 
-    
-    float patternVal = smoothstep(0.1, 0.5, contrastedAbsDiff);
-    return patternVal;
-}
-
-float pattern_hyperVoronoi(highp vec2 p, float integratedTime, float scale, float edgeWidth,
-                           float bass, float mid, float high, float overallAudio) {
-    
-    float bassPulseScale = pow(bass, 1.5) * 8.0;
-    float midWarpScale = mid * 3.0;
-    
-    float centroidScaleFactor = 1.0 + u_spectralCentroid * 1.5; 
-    float modulatedScale = (scale + bassPulseScale + midWarpScale) * centroidScaleFactor;
-    
-    float highSharpness = high * 0.25;
-    
-    float beatEdgePulse = u_beatStrength * 0.5; 
-    float modulatedEdgeWidth = max(0.001, edgeWidth + highSharpness - bass * 0.05 - beatEdgePulse * edgeWidth);
-
-    highp vec2 scaled_p = p * modulatedScale;
-    float voronoiTimeOffset = integratedTime * (0.2 + mid * 0.5);
-    highp vec2 vdist = voronoi(scaled_p, voronoiTimeOffset, bass, high);
-    float edge = vdist.y - vdist.x;
-
-    float lowerBound = modulatedEdgeWidth * (0.5 - high * 0.4); 
-    float upperBound = modulatedEdgeWidth * (1.5 + high * 0.8);
-    return 1.0 - smoothstep(lowerBound, upperBound, edge);
-}
-
-float pattern_spiralArms(highp vec2 p, float accumulatedSpiralNoiseTime, 
-                         float numArms, float tightness, float noiseScale,
-                         float bass, float mid, float high, float overallAudio) {
-    
-    
-    float modulatedArms = numArms + pow(bass, 1.2) * 6.0 + mid * 1.5 + u_beatStrength * 3.0;
-    float modulatedTightness = tightness + high * 1.5 - bass * 0.4;
-    float modulatedNoiseScale = noiseScale + mid * 3.0 + overallAudio * 1.0;
-
-    float radius = length(p);
-    if (radius < 0.0001) return 0.0;
-    float angle = atan(p.y, p.x);
-    float clamped_radius_for_log = max(radius, 0.01);
-
-    float logRadiusTerm = log(clamped_radius_for_log + 0.001) * modulatedTightness * (1.0 + bass * 0.5);
-    float timeSpeedFactor = 1.0 + high * 0.8;
-    float timeOffset = accumulatedSpiralNoiseTime * 0.5 * timeSpeedFactor;
-    float midPhaseShift = mid * 4.0 * PI;
-    float bassPhasePulse = sin(accumulatedSpiralNoiseTime * 2.0 + bass * PI * 5.0) * bass * 0.8 * PI;
-
-    float spiralPhase = angle + logRadiusTerm - timeOffset + midPhaseShift + bassPhasePulse;
-    float spiralValue = sin(spiralPhase);
-    float armWidth = 0.6 + high * 0.3 - mid * 0.2;
-    float spiralIntensity = smoothstep(-armWidth, armWidth, spiralValue);
-
-    highp vec2 noiseTimeOffset = vec2(accumulatedSpiralNoiseTime * (0.5 + bass * 0.6), -accumulatedSpiralNoiseTime * (0.3 + high * 0.5));
-    highp vec2 noiseCoords = p * modulatedNoiseScale * 3.0 + vec2(radius * 0.5, 0.0) + noiseTimeOffset;
-    float noiseVal = fbm(noiseCoords);
-
-    
-    float noiseInfluence = 0.4 + 1.2 * noiseVal * (1.0 + overallAudio * 0.5) * (0.5 + u_spectralCentroid * 1.0); 
-    return clamp(spiralIntensity * noiseInfluence, 0.0, 1.0);
-}
-
-float pattern_reactionDiff(highp vec2 p, float accumulatedTuringTime, 
-                           float complexity, float spotSize, float tScale, float tFeed, float tKill,
-                           float bass, float mid, float high, float overallAudio) {
-    
-    float modulatedComplexity = complexity + pow(overallAudio, 0.7) * 3.0 + mid * 1.5;
-    float modulatedSpotSize = spotSize + pow(bass, 1.3) * 1.5 + mid * 0.6; 
-    float timeSpeedFactor = 1.0 + high * 2.0; 
-    float timeScaled = accumulatedTuringTime * 0.2 * timeSpeedFactor;
-    float complexityFactor = mix(1.0, 4.0, modulatedComplexity); 
-
-    
-    highp vec2 audioOffsetA = vec2(bass * 0.3 * cos(timeScaled * 0.5), mid * 0.25 * sin(timeScaled * 0.7));
-    highp vec2 audioOffsetB = vec2(high * 0.2 * sin(timeScaled * -0.4), bass * 0.35 * cos(timeScaled * 0.6));
-    highp vec2 audioOffsetC = vec2(mid * 0.2 * cos(timeScaled * 0.8), high * 0.15 * sin(timeScaled * 0.9));
-
-    highp vec2 pA = p * tScale * (1.0 + high * 0.1) + vec2(timeScaled * 0.5, -timeScaled * 0.3) + audioOffsetA;
-    highp vec2 pB = p * tScale * 1.1 * (1.0 - mid * 0.1) + vec2(-timeScaled * 0.2, timeScaled * 0.6) * complexityFactor + audioOffsetB;
-    highp vec2 pC = p * tScale * 0.9 * (1.0 + bass * 0.1) + vec2(timeScaled * 0.7, timeScaled * 0.4) * (1.0 + complexityFactor) + audioOffsetC;
-
-    float noiseA = fbm(pA);
-    float noiseB = fbm(pB);
-    float noiseC = noise(pC * 2.0);
-
-    
-    float noiseCombineFactor = 0.8 + modulatedComplexity * 0.4 + bass * 0.3;
-    float noiseCScale = 0.3 * modulatedComplexity + high * 0.2;
-    float combinedNoise = (noiseA - noiseB * noiseCombineFactor) + noiseC * noiseCScale;
-
-    
-    float killMod = clamp(tKill + bass * 0.8, 0.0, 1.0); 
-    float feedMod = clamp(tFeed + high * 1.2 + mid * 0.4, 0.0, 1.0); 
-    float threshold = mix(0.35, 0.65, killMod); 
-    float contrast = mix(0.5, 2.0, feedMod); 
-
-    
-    float edgeWidth = mix(0.25, 0.01, pow(modulatedSpotSize, 1.5)); 
-    float patternVal = smoothstep(threshold - edgeWidth, threshold + edgeWidth, combinedNoise * contrast);
-    return patternVal;
-}
-
-float pattern_hyperFlow(highp vec2 p, float accumulatedFlowTime, 
-                        float complexity, float curlAmount,
-                        float bass, float mid, float high, float overallAudio) {
-    
-    float modulatedComplexity = complexity + mid * 3.0 + high * 1.5 + overallAudio * 0.5; 
-    float modulatedCurl = curlAmount + pow(bass, 1.4) * 2.5 + mid * 1.2; 
-
-    
-    float timeSpeedFactor = 1.0 + high * 1.2 + bass * 0.5;
-    float timeScaled = accumulatedFlowTime * 0.3 * timeSpeedFactor;
-    float scale = modulatedComplexity * 8.0;
-    float r2 = dot(p, p);
-    highp vec2 hp = p * (2.0 / (1.0 + r2)); 
-
-    
-    highp vec2 audioOffset = vec2(bass * 0.2 * cos(timeScaled), mid * 0.15 * sin(timeScaled * 1.3));
-    highp vec2 noiseCoord = hp * scale + vec2(timeScaled, -timeScaled * 0.7) + audioOffset;
-    float flowAngle = noise(noiseCoord) * TAU;
-    float curlOffset = 0.01;
-
-    
-    float fbmTimeScale = 0.3 + high * 0.4;
-    float fbmScaleFactor = 0.5 + mid * 0.3;
-    float fbmBase = fbm(hp * scale * fbmScaleFactor + timeScaled * fbmTimeScale + audioOffset * 0.5);
-    float fbmDx = fbm((hp + vec2(curlOffset, 0.0)) * scale * fbmScaleFactor + timeScaled * fbmTimeScale + audioOffset * 0.5);
-    float fbmDy = fbm((hp + vec2(0.0, curlOffset)) * scale * fbmScaleFactor + timeScaled * fbmTimeScale + audioOffset * 0.5);
-
-    vec2 gradient = normalize(vec2(fbmDx - fbmBase, fbmDy - fbmBase) / curlOffset);
-    float curlAngle = atan(gradient.y, gradient.x);
-
-    
-    float finalAngle = flowAngle + curlAngle * modulatedCurl * (2.0 + bass * 1.0) + mid * PI; 
-
-    mat2 flowRotation = rotate(finalAngle * 0.5);
-    highp vec2 distortedCoord = flowRotation * hp * (1.5 + bass * 0.5); 
-
-    
-    return fbm(distortedCoord + noiseCoord * (0.1 + high * 0.15)); 
-}
-
-float pattern_cubeGrid(highp vec2 sym_uv,
-                       float accumulatedCubeTime,
-                       float cubeSize,
-                       float layerAudioDistortionAmount, 
-                       float bass, float mid, float high, float overallAudio)
-{
-    
-    
-    float baseDensity = mix(20.0, 4.0, smoothstep(0.1, 1.5, cubeSize));
-    float gridDensity = baseDensity * (1.0 + bass * 0.5 - high * 0.3);
-    gridDensity = max(1.0, gridDensity); 
-
-    highp vec2 gridUv = sym_uv * gridDensity;
-    highp vec2 cellId = floor(gridUv);
-    highp vec2 localUv = fract(gridUv) - 0.5;
-
-    
-    float cellHash = hash11(cellId);
-    float rotationSpeedFactor = 0.5 + cellHash * 1.5 + mid * 2.0; 
-    float audioRotationOffset = high * 1.5 * PI; 
-    float angle = accumulatedCubeTime * rotationSpeedFactor + cellHash * TAU + audioRotationOffset;
-    mat2 rotMat = rotate(-angle);
-    highp vec2 rotatedLocalUv = rotMat * localUv;
-
-    
-    
-    float baseHalfSize = mix(0.1, 0.45, smoothstep(0.1, 1.5, cubeSize));
-    float squareHalfSize = baseHalfSize * (1.0 - bass * 0.4 + high * 0.2);
-    squareHalfSize = clamp(squareHalfSize, 0.01, 0.49); 
-
-    float d = max(abs(rotatedLocalUv.x), abs(rotatedLocalUv.y)) - squareHalfSize;
-
-    
-    
-    float edgeWidth = (0.02 / gridDensity) * (1.0 + mid * 1.5 - bass * 0.8);
-    edgeWidth = max(0.001, edgeWidth);
-    float squareFill = smoothstep(edgeWidth, -edgeWidth, d);
-
-    
-    squareFill *= (0.8 + overallAudio * 0.4);
-
-    return clamp(squareFill, 0.0, 1.0);
-}
-
-struct AccumulatedTimes {
-    float turing;
-    float spiralNoise;
-    float flow;
-    float cube;
-};
-uniform AccumulatedTimes u_accumulatedTimes[4];
-
-float getPatternValue(
-    int patternTypeToUse,
-    int layerIndex, 
-    LayerParams layerData,
-    highp vec2 sym_uv, 
-    highp vec2 dist_uv, 
-    float integratedTime,
-    
-    float bass, float mid, float high, float overallAudio
-) {
-    
-    highp vec2 input_uv; 
-    
-    if (patternTypeToUse == PATTERN_CUBEGRID) {
-         input_uv = sym_uv;
-    } else {
-         
-         input_uv = dist_uv;
-    }
-
-    
-    if (patternTypeToUse == PATTERN_INVISIBLE) {
-        return 0.0;
-    } else if (patternTypeToUse == PATTERN_WOVENGRID) { 
-        return pattern_wovenGrid(input_uv, integratedTime, layerData.freq, layerData.weaveThickness, bass, mid, high, overallAudio);
-    } else if (patternTypeToUse == PATTERN_HYPERTURING) {
-        return pattern_hyperTuring(input_uv, u_accumulatedTimes[layerIndex].turing,
-                                   layerData.turingScale, layerData.turingFeed, layerData.turingKill,
-                                   layerData.turingDiffusionA, layerData.turingDiffusionB,
-                                   bass, mid, high, overallAudio);
-    } else if (patternTypeToUse == PATTERN_HYPERVORONOI) { 
-         return pattern_hyperVoronoi(input_uv, integratedTime, layerData.voronoiScale, layerData.voronoiEdgeWidth,
-                                    bass, mid, high, overallAudio);
-    } else if (patternTypeToUse == PATTERN_SPIRALARMS) {
-        return pattern_spiralArms(input_uv, u_accumulatedTimes[layerIndex].spiralNoise,
-                                layerData.spiralArms, layerData.spiralTightness,
-                                layerData.spiralNoiseScale,
-                                bass, mid, high, overallAudio);
-    } else if (patternTypeToUse == PATTERN_REACTIONDIFF) {
-        return pattern_reactionDiff(input_uv, u_accumulatedTimes[layerIndex].turing, 
-                                    layerData.rdComplexity, layerData.rdSpotSize,
-                                    layerData.turingScale, layerData.turingFeed, layerData.turingKill, 
-                                    bass, mid, high, overallAudio);
-    } else if (patternTypeToUse == PATTERN_HYPERFLOW) {
-        return pattern_hyperFlow(input_uv, u_accumulatedTimes[layerIndex].flow,
-                                 layerData.flowComplexity, layerData.flowCurl,
-                                 bass, mid, high, overallAudio);
-    } else if (patternTypeToUse == PATTERN_CUBEGRID) {
-        
-        
-        
-        return pattern_cubeGrid(input_uv, 
-                                  u_accumulatedTimes[layerIndex].cube,
-                                  layerData.cubeSize,
-                                  0.0, 
-                                  bass, mid, high, overallAudio);
-    }
-    return 0.0;
-}
-
-vec3 getColorForMode(
-    float patternValue,
-    int modeIndex,
-    float integratedTime,
-    highp vec2 uv,
-    
-    float bass, float mid, float high
-) {
-    
-    if (modeIndex == COLOR_MODE_FIRE) {
-        
-        return texture(u_fire_gradient_texture, vec2(patternValue, 0.5)).rgb;
-    } else if (modeIndex == COLOR_MODE_ICE) {
-        return texture(u_ice_gradient_texture, vec2(patternValue, 0.5)).rgb;
-    } else if (modeIndex == COLOR_MODE_MONOCHROME) {
-        return vec3(patternValue);
-    } else if (modeIndex == COLOR_MODE_AUDIO_RGB) {
-        
-        
-        float beatMod = 1.0 + u_beatStrength * 0.5;
-        float bass_amp = bass * 5.0 * beatMod;
-        float mid_amp = mid * 4.0 * beatMod;
-        float high_amp = high * 6.0 * beatMod;
-        
-        return clamp(vec3(bass_amp, mid_amp, high_amp) * patternValue * 1.5, 0.0, 1.0);
-    } else if (modeIndex == COLOR_MODE_SPECTRUM) {
-        
-        
-        float r = bass * 6.0; 
-        float g = mid * 5.0;  
-        float b = high * 7.0; 
-        
-        return clamp(vec3(r, g, b) * (patternValue * 0.8 + 0.2), 0.0, 1.0);
-    } else if (modeIndex == COLOR_MODE_REACTIVE_PULSE) {
-        
-        
-        vec3 baseColor = vec3(patternValue * 0.8 + 0.1); 
-        
-        float pulseSpeed = 5.0 + mid * 10.0; 
-        float pulseIntensity = bass * 2.5;   
-        float pulse = (sin(integratedTime * pulseSpeed + patternValue * PI) * 0.5 + 0.5) * pulseIntensity;
-        
-        vec3 pulseColor = vec3(1.0, 0.95, 0.9); 
-        return clamp(mix(baseColor, pulseColor, clamp(pulse, 0.0, 1.0)), 0.0, 1.0);
-    }
-    else { 
-        
-        float hueShift = u_rainbowPhase + u_spectralCentroid * 0.3; 
-        
-        float valuePulse = 1.0 + u_beatStrength * 0.3;
-        float hue = mod(patternValue + hueShift, 1.0);
-        vec3 rainbowColor = texture(u_gradient_texture, vec2(hue, 0.5)).rgb;
-        return clamp(rainbowColor * valuePulse, 0.0, 1.0); 
-    }
-}
-
-vec3 getColor(
-    float patternValue,
-    LayerParams layer,
-    float integratedTime,
-    highp vec2 uv, 
-    
-    float bass, float mid, float high
-) {
-    int baseMode = u_forceGlobalColor ? u_globalColorMode : layer.colorMode;
-    int targetMode = u_forceGlobalColor ? u_globalColorMode : layer.blendTargetColorMode;
-
-    vec3 baseColor;
-    vec3 targetColor;
-
-    
-    if (baseMode == COLOR_MODE_VELOCITY) {
-        
-        
-        vec3 feedback = texture(u_feedback_texture, vUv).rgb;
-        
-        float feedbackLuminance = dot(feedback, vec3(0.299, 0.587, 0.114));
-        
-        float currentIntensity = max(0.0, patternValue);
-        float velocity = abs(currentIntensity - feedbackLuminance);
-        
-        
-        float velocityEnhanced = pow(velocity, 0.7) * 1.5;
-        baseColor = texture(u_fire_gradient_texture, vec2(clamp(velocityEnhanced, 0.0, 1.0), 0.5)).rgb;
-        
-        baseColor = mix(baseColor, vec3(patternValue * 0.5), 0.3); 
-    } else {
-        
-        baseColor = getColorForMode(patternValue, baseMode, integratedTime, uv, bass, mid, high);
-    }
-
-    
-    if (targetMode == COLOR_MODE_VELOCITY) {
-        
-        vec3 feedback = texture(u_feedback_texture, vUv).rgb;
-        float feedbackLuminance = dot(feedback, vec3(0.299, 0.587, 0.114));
-        float currentIntensity = max(0.0, patternValue); 
-        float velocity = abs(currentIntensity - feedbackLuminance);
-        float velocityEnhanced = pow(velocity, 0.7) * 1.5;
-        targetColor = texture(u_fire_gradient_texture, vec2(clamp(velocityEnhanced, 0.0, 1.0), 0.5)).rgb;
-        targetColor = mix(targetColor, vec3(patternValue * 0.5), 0.3);
-    } else {
-        
-        targetColor = getColorForMode(patternValue, targetMode, integratedTime, uv, bass, mid, high);
-    }
-
-    
-    return mix(baseColor, targetColor, layer.blendAmount);
-}
-
-float simpleEdgeDetect(sampler2D tex, highp vec2 uv, highp vec2 resolution) {
-    highp vec2 texel = 1.0 / resolution;
-    float dx0 = texture2D(tex, uv + vec2(-texel.x, 0.0)).r;
-    float dx1 = texture2D(tex, uv + vec2( texel.x, 0.0)).r;
-    float dy0 = texture2D(tex, uv + vec2(0.0, -texel.y)).r;
-    float dy1 = texture2D(tex, uv + vec2(0.0,  texel.y)).r;
-    float dx = dx1 - dx0;
-    float dy = dy1 - dy0;
-    return sqrt(dx * dx + dy * dy);
-}
-
-vec3 posterize(vec3 color, float levels) {
-    return floor(color * levels) / levels;
-}
-
-vec3 applyCartoonEffect(vec3 finalColor, highp vec2 uv, highp vec2 resolution) {
-    
-    float shadowThreshold = 0.35; 
-    float highlightThreshold = 0.65; 
-
-    
-    float inputLuma = dot(finalColor, vec3(0.299, 0.587, 0.114));
-    vec3 quantizedColor;
-
-    if (inputLuma < shadowThreshold) {
-        
-        quantizedColor = finalColor * 0.45; 
-        quantizedColor = mix(vec3(dot(quantizedColor, vec3(0.299, 0.587, 0.114))), quantizedColor, 0.5); 
-    } else if (inputLuma < highlightThreshold) {
-        
-        quantizedColor = mix(vec3(dot(finalColor, vec3(0.299, 0.587, 0.114))), finalColor, 0.9); 
-        quantizedColor *= 0.9; 
-    } else {
-        
-        quantizedColor = mix(finalColor, vec3(1.0), 0.4); 
-        quantizedColor = pow(quantizedColor, vec3(0.8)); 
-    }
-
-    
-    return clamp(quantizedColor, 0.0, 1.0);
-}
-
-vec3 applyHashGridEffect(vec3 finalColor, highp vec2 screenCoord, float time) {
-    float lineThickness = 0.48; 
-    float edgeSoftness = 0.02;  
-
-    
-    highp vec2 screenUV = screenCoord / u_resolution;
-    vec3 feedbackColor = texture2D(u_feedback_texture, screenUV).rgb;
-    float luma = dot(feedbackColor, vec3(0.299, 0.587, 0.114)); 
-
-    
-    float angle1 = PI / 4.0;
-    float hashSpacing1 = mix(8.0, 2.5, luma * luma); 
-    highp vec2 rotatedUv1 = (screenCoord.xy * rotate(angle1)) / hashSpacing1;
-    float hashLines1 = 1.0 - smoothstep(lineThickness - edgeSoftness, lineThickness + edgeSoftness, abs(mod(rotatedUv1.x + rotatedUv1.y * 0.1, 1.0) - 0.5) * 2.0);
-    
-    
-    float angle2 = -PI / 4.0;
-    float hashSpacing2 = mix(7.5, 2.8, luma * luma); 
-    highp vec2 rotatedUv2 = (screenCoord.xy * rotate(angle2)) / hashSpacing2;
-    float hashLines2 = 1.0 - smoothstep(lineThickness - edgeSoftness, lineThickness + edgeSoftness, abs(mod(rotatedUv2.x - rotatedUv2.y * 0.1 + 0.5, 1.0) - 0.5) * 2.0);
-    
-    
-    float combinedLines = 0.0;
-    float crossHatchThreshold = 0.5; 
-    combinedLines += hashLines1; 
-    combinedLines += hashLines2 * smoothstep(crossHatchThreshold - 0.1, crossHatchThreshold + 0.1, luma);
-    float finalPattern = 1.0 - clamp(combinedLines, 0.0, 1.0);
-    
-    
-    return finalColor * finalPattern;
-}
-
-vec3 applyAsciiEffect(vec3 finalColor, highp vec2 screenCoord, float time) {
-    
-    highp vec2 charUv = floor(screenCoord / u_asciiCharSize); 
-    highp vec2 withinCharUv = fract(screenCoord / u_asciiCharSize); 
-
-    
-    
-    highp vec2 blockCenterUv = (charUv + 0.5) * u_asciiCharSize / u_resolution; 
-    vec3 blockColor = texture2D(u_feedback_texture, blockCenterUv).rgb; 
-    float luma = dot(blockColor, vec3(0.299, 0.587, 0.114)); 
-    
-    float pattern = 0.0; 
-
-    
-    if (luma > 0.8) { 
-        pattern = smoothstep(0.1, 0.2, withinCharUv.x) * (1.0 - smoothstep(0.8, 0.9, withinCharUv.x)) * 
-                  smoothstep(0.1, 0.2, withinCharUv.y) * (1.0 - smoothstep(0.8, 0.9, withinCharUv.y)); 
-        pattern = 0.9; 
-    } else if (luma > 0.6) { 
-        float h1 = step(0.4, withinCharUv.x) * step(withinCharUv.x, 0.6); 
-        float h2 = step(0.4, withinCharUv.y) * step(withinCharUv.y, 0.6); 
-        pattern = max(h1, h2);
-    } else if (luma > 0.4) { 
-         float p1 = step(0.4, withinCharUv.x) * step(withinCharUv.x, 0.6); 
-         float p2 = step(0.4, withinCharUv.y) * step(withinCharUv.y, 0.6); 
-         pattern = max(p1 * step(0.2, withinCharUv.y) * step(withinCharUv.y, 0.8), 
-                       p2 * step(0.2, withinCharUv.x) * step(withinCharUv.x, 0.8)); 
-         pattern = min(pattern * 1.5, 1.0); 
-    } else if (luma > 0.2) { 
-        pattern = step(0.45, withinCharUv.y) * step(withinCharUv.y, 0.55); 
-    } else { 
-        pattern = step(0.4, withinCharUv.x) * step(withinCharUv.x, 0.6) * 
-                  step(0.4, withinCharUv.y) * step(withinCharUv.y, 0.6); 
-        pattern *= 0.5; 
-    }
-    
-    
-    return finalColor * pattern; 
-}
-
-vec3 rgb2hsl(vec3 color) {
-    float maxVal = max(max(color.r, color.g), color.b);
-    float minVal = min(min(color.r, color.g), color.b);
-    float h = 0.0, s = 0.0, l = (maxVal + minVal) / 2.0;
-
-    if (maxVal == minVal) {
-        h = s = 0.0; 
-    } else {
-        float d = maxVal - minVal;
-        s = l > 0.5 ? d / (2.0 - maxVal - minVal) : d / (maxVal + minVal);
-        if (maxVal == color.r) {
-            h = (color.g - color.b) / d + (color.g < color.b ? 6.0 : 0.0);
-        } else if (maxVal == color.g) {
-            h = (color.b - color.r) / d + 2.0;
-        } else { 
-            h = (color.r - color.g) / d + 4.0;
-        }
-        h /= 6.0;
-    }
-    return vec3(h, s, l);
-}
-
-float hue2rgb(float p, float q, float t) {
-    if (t < 0.0) t += 1.0;
-    if (t > 1.0) t -= 1.0;
-    if (t < 1.0/6.0) return p + (q - p) * 6.0 * t;
-    if (t < 1.0/2.0) return q;
-    if (t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
-    return p;
-}
-
-vec3 hsl2rgb(vec3 hsl) {
-    float h = hsl.x, s = hsl.y, l = hsl.z;
-    float r, g, b;
-
-    if (s == 0.0) {
-        r = g = b = l; 
-    } else {
-        float q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
-        float p = 2.0 * l - q;
-        r = hue2rgb(p, q, h + 1.0/3.0);
-        g = hue2rgb(p, q, h);
-        b = hue2rgb(p, q, h - 1.0/3.0);
-    }
-    return vec3(r, g, b);
-}
-
-vec3 applyStainedGlassEffect(vec3 finalColor, highp vec2 uv, float time) {
-    float voronoiScale = 6.0;        
-    float edgeWidth = 0.04;         
-    float edgeSoftness = 0.015;      
-    
-
-    
-    
-    highp vec2 scaled_uv = uv * voronoiScale;
-    highp vec2 vdist = voronoi(scaled_uv, time * 0.05, 0.0, 0.0); 
-
-    
-    float edgeFactor = smoothstep(edgeWidth - edgeSoftness, edgeWidth + edgeSoftness, vdist.y - vdist.x);
-
-    
-    float luma = dot(finalColor, vec3(0.299, 0.587, 0.114));
-
-    
-    
-    float brightnessFactor = 1.0 + pow(luma, 2.0) * 1.8; 
-    float saturationFactor = 1.0 + luma * 0.2; 
-
-    vec3 hslColor = rgb2hsl(finalColor);
-    hslColor.y = clamp(hslColor.y * saturationFactor, 0.0, 1.0); 
-    hslColor.z = clamp(hslColor.z * brightnessFactor, 0.0, 1.0); 
-    vec3 enhancedColor = hsl2rgb(hslColor);
-
-    
-    
-    vec3 colorWithEdges = mix(vec3(0.0), enhancedColor, edgeFactor);
-
-    return colorWithEdges;
-}
-
-vec3 applyVisualModeEffect(
-    int mode,
-    vec3 inputColor,
-    highp vec2 screenUV, 
-    highp vec2 resolution, 
-    highp sampler2D feedbackTexture, 
-    float effectiveTime
-) {
-    vec3 resultColor = inputColor; 
-
-    
-    if (mode == MODE_PIXELATE) {
-        return resultColor; 
-    }
-
-    
-    if (mode == MODE_GLOW) {
-        
-        vec3 blurredFeedback = textureBlur(feedbackTexture, screenUV, resolution, 5.0); 
-        resultColor += blurredFeedback * 0.5 * length(inputColor); 
-        
-    } else if (mode == MODE_EDGEDETECT) {
-        
-        float edge = sobelEdgeDetect(feedbackTexture, screenUV, resolution);
-        resultColor *= edge; 
-        
-    } else if (mode == MODE_MOIRE) {
-        
-        vec2 moireOffset = vec2(0.005, 0.001);
-        float moireScale = 1.01;
-        highp vec2 moireUV = (screenUV - 0.5) * moireScale + 0.5 + moireOffset;
-        
-        if (moireUV.x > 0.0 && moireUV.x < 1.0 && moireUV.y > 0.0 && moireUV.y < 1.0) {
-             vec3 moireSample = texture(feedbackTexture, moireUV).rgb;
-             resultColor = mix(resultColor, moireSample, 0.5); 
-        }
-        
-    } else if (mode == MODE_CARTOON) {
-         
-         resultColor = applyCartoonEffect(resultColor, screenUV, resolution);
-         
-    } else if (mode == MODE_HASHGRID) {
-         
-         highp vec2 fragCoord = screenUV * resolution; 
-         resultColor = applyHashGridEffect(resultColor, fragCoord, effectiveTime);
-         
-    } else if (mode == MODE_ASCII) {
-         
-         highp vec2 fragCoord = screenUV * resolution; 
-         resultColor = applyAsciiEffect(resultColor, fragCoord, effectiveTime);
-         
-    } else if (mode == MODE_STAINED_GLASS) {
-         
-         resultColor = applyStainedGlassEffect(resultColor, screenUV, effectiveTime);
-    }
-    
-
-    return clamp(resultColor, 0.0, 1.0); 
-}
-
+import {
+    GALLERY_FACE_COUNT,
+    GALLERY_FACE_SEEDS,
+    GALLERY_FACES_PER_FRAME,
+    createGalleryFaceTargets,
+    createGalleryFaceState,
+    applyGalleryWallStack,
+    applyGalleryWallModes,
+    copyAccumulatedTimesTo,
+    consumeGalleryWarmupRequest,
+    getGalleryFaceRenderSize,
+    getGalleryRenderSize,
+    getGalleryWallStacksForRender,
+    resizeGalleryFaceTargets,
+    disposeGalleryFaceTargets,
+} from '../lib/galleryStack.js';
+import {
+    FLOATING_OBJECT_COUNT,
+    FLOATING_OBJECTS_PER_FRAME,
+    createFloatingObjectState,
+    createFloatingObjectTargets,
+    renderFloatingObjectTexture,
+    resizeFloatingObjectTargets,
+    disposeFloatingObjectTargets,
+    isGalleryContentTransitionActive,
+} from '../lib/galleryFloatingObjects.js';
+import {
+    blitPatternHeightMap,
+    bindDisplaceableMeshTextures,
+    createGallerySeamBlitPass,
+} from '../lib/galleryDisplacement.js';
+import {
+    getGalleryFaceIntegratedTimes,
+    getGalleryEdgeNeighborTimes,
+    getGalleryEdgeNeighborDistortion,
+    GALLERY_EDGE_BLEND,
+} from '../lib/gallerySeams.js';
+
+import mainVert from '../shaders/main.vert?raw';
+import mainFrag from '../shaders/main.frag?raw';
+import blendFrag from '../shaders/blend.frag?raw';
+
+const yL = mainVert,
+    SL = mainFrag,
+    xL = mainVert,
+    ML = blendFrag,
+    heightBlitFrag = `
+precision highp float;
+uniform sampler2D u_src;
+varying vec2 vUv;
 void main() {
-    
-    
-    highp vec2 pixelSize = u_resolution / max(1.0, u_pixelationFactor); 
-    highp vec2 pixelatedUV = floor(vUv * pixelSize + 0.5) / pixelSize;
-
-    
-    
-    highp vec2 blendedUV = vUv; 
-    bool fromIsPixelate = (u_visualModeFromIndex == MODE_PIXELATE);
-    bool toIsPixelate = (u_visualModeToIndex == MODE_PIXELATE);
-
-    if (fromIsPixelate && toIsPixelate) { 
-        blendedUV = pixelatedUV;
-    } else if (fromIsPixelate && !toIsPixelate) { 
-        blendedUV = mix(pixelatedUV, vUv, u_visualModeBlend);
-    } else if (!fromIsPixelate && toIsPixelate) { 
-        blendedUV = mix(vUv, pixelatedUV, u_visualModeBlend);
-    } 
-
-    
-    highp vec2 base_uv_centered = (blendedUV - 0.5) * u_resolution / min(u_resolution.x, u_resolution.y);
-    
-    
-    
-
-    
-    
-    float baseBassLevel = getAudioBandLevel(0.0, BASS_END);
-    float baseMidLevel = getAudioBandLevel(BASS_END, MID_END);
-    float baseHighLevel = getAudioBandLevel(MID_END, 1.0);
-    float baseOverallLevel = (baseBassLevel + baseMidLevel + baseHighLevel) / 3.0; 
-
-    
-    float beatPhase = fract(u_integratedTime * u_bpm / 60.0); 
-    float bpmPulse = (sin(beatPhase * TAU - PI * 0.5) * 0.5 + 0.5); 
-    bpmPulse = pow(bpmPulse, 3.0); 
-
-    float bassIntensityFactor = smoothstep(0.0, 0.6, baseBassLevel * u_globalAudioSensitivity); 
-    bassIntensityFactor = pow(bassIntensityFactor, 1.5); 
-
-    
-    float zoomPulseAmount = mix(1.0, 0.95, bpmPulse * bassIntensityFactor * 0.5); 
-    highp vec2 uv = (base_uv_centered * zoomPulseAmount) / u_uvScale; 
-
-    
-    float globalSens = u_globalAudioSensitivity;
-
-    
-    vec3 layerColorSum = vec3(0.0);
-    float totalAlpha = 0.0;
-    const float alphaThreshold = 0.01;
-
-    for (int i = 0; i < 4; ++i) {
-        LayerParams currentLayer = u_layers[i];
-
-        
-        bool basePatternInvisible = currentLayer.patternType == PATTERN_INVISIBLE;
-        bool targetPatternInvisible = currentLayer.blendTargetType == PATTERN_INVISIBLE;
-        float blendAmount = currentLayer.blendAmount;
-        bool blendComplete = blendAmount <= 0.01 || blendAmount >= 0.99;
-
-        
-        if (basePatternInvisible && targetPatternInvisible) {
-            continue;
-        }
-        
-        if (basePatternInvisible && blendAmount <= 0.01) {
-            continue;
-        }
-         
-        if (targetPatternInvisible && blendAmount >= 0.99) {
-            continue;
-        }
-
-        
-        float layerSens = currentLayer.audioSensitivity * globalSens; 
-        
-        float layerBass = baseBassLevel * layerSens * currentLayer.bassSensitivity * 0.7; 
-        float layerMid = baseMidLevel * layerSens * currentLayer.midSensitivity * 0.25;
-        float layerHigh = baseHighLevel * layerSens * currentLayer.highSensitivity * 0.6;
-        float layerOverall = baseOverallLevel * layerSens * 0.35;
-
-        
-        
-        
-        
-        float midRotation = layerMid * 0.6 * 8.0; 
-        float highJitter = sin(u_integratedTime * 15.0 + layerHigh * 10.0) * layerHigh * 0.8; 
-        
-        float bassWobble = cos(u_integratedTime * 1.2 + layerBass * 6.0) * layerBass * (1.5 + bassIntensityFactor * 1.0); 
-        float audioDrivenRotation = midRotation + highJitter + bassWobble;
-
-        float symmetryAngleOffset = currentLayer.accumulatedSymmetryAngle + audioDrivenRotation;
-        float modulatedSymmetry = currentLayer.symmetry + layerMid * 2.0; 
-        
-        
-        highp vec2 sym_uv = applySymmetry(uv, modulatedSymmetry, symmetryAngleOffset, layerMid, layerHigh, u_integratedTime);
-
-        float audioDistortionParam = layerBass * 0.3 + (layerMid * 0.5 + layerHigh) * 0.3 + u_beatStrength * 0.15; 
-        float finalDistortionAmount = u_globalDistortionScale + currentLayer.distortionStrength + audioDistortionParam;
-        highp vec2 dist_uv = complexDistortion(sym_uv, uv, finalDistortionAmount, u_integratedTime, layerBass, layerMid, layerHigh);
-
-        
-        float pattern_base = 0.0;
-        float pattern_target = 0.0;
-        float pattern = 0.0;
-
-        
-        if (!basePatternInvisible && blendAmount < 0.99) {
-            
-            pattern_base = getPatternValue(currentLayer.patternType, i, currentLayer, uv, dist_uv, u_integratedTime, layerBass, layerMid, layerHigh, layerOverall);
-        }
-
-        
-        if (!targetPatternInvisible && blendAmount > 0.01) {
-            
-            pattern_target = getPatternValue(currentLayer.blendTargetType, i, currentLayer, uv, dist_uv, u_integratedTime, layerBass, layerMid, layerHigh, layerOverall);
-        }
-        
-        
-        pattern = mix(pattern_base, pattern_target, blendAmount);
-
-        
-        
-        vec3 layerColor = getColor(pattern, currentLayer, u_integratedTime, uv, layerBass, layerMid, layerHigh);
-        
-        
-        float alpha = clamp(abs(pattern), 0.0, 1.0);
-        if (alpha > alphaThreshold) {
-            layerColorSum = layerColorSum * (1.0 - alpha) + layerColor * alpha;
-            totalAlpha = totalAlpha * (1.0 - alpha) + alpha; 
-        }
-    }
-    
-    vec3 blendedColor = (totalAlpha > 0.0) ? layerColorSum / totalAlpha : vec3(0.0);
-    
-    blendedColor = (totalAlpha <= 0.0 && length(layerColorSum) > 0.0) ? layerColorSum : blendedColor;
-    blendedColor = clamp(blendedColor, 0.0, 1.0);
-
-    
-    
-    vec3 feedbackColor = texture(u_feedback_texture, blendedUV).rgb;
-
-    
-    highp float effectiveTime = u_time * u_globalTimeScale;
-
-    
-    
-    vec3 processedColorFrom = applyVisualModeEffect(
-        u_visualModeFromIndex, blendedColor, vUv, u_resolution, u_feedback_texture, effectiveTime
-    );
-
-    
-    vec3 processedColorTo = applyVisualModeEffect(
-        u_visualModeToIndex, blendedColor, vUv, u_resolution, u_feedback_texture, effectiveTime
-    );
-
-    
-    vec3 processedColorBlended = mix(processedColorFrom, processedColorTo, u_visualModeBlend);
-
-    
-    
-    float dynamicFeedbackMix = u_feedback_mix + bassIntensityFactor * 0.08; 
-    dynamicFeedbackMix = clamp(dynamicFeedbackMix, 0.0, 0.98); 
-    vec3 currentFrameFinalColor = mix(processedColorBlended, feedbackColor, dynamicFeedbackMix);
-
-    
-    if (bassIntensityFactor > 0.1) { 
-        vec3 hslColor = rgb2hsl(currentFrameFinalColor);
-        float saturationBoost = bassIntensityFactor * 0.15; 
-        hslColor.y = clamp(hslColor.y + saturationBoost, 0.0, 1.0);
-        currentFrameFinalColor = hsl2rgb(hslColor);
-    }
-    
-    
-    currentFrameFinalColor = clamp(currentFrameFinalColor, 0.0, 1.0);
-    gl_FragColor = vec4(currentFrameFinalColor, 1.0);
-}`,
-    xL = `varying vec2 vUv;\r
-void main() {\r
-  vUv = uv;\r
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\r
-}`,
-    ML = `varying vec2 vUv;
-uniform sampler2D u_textureA; 
-uniform sampler2D u_textureB; 
-uniform float u_blendFactor;  
-
+  vec3 c = texture2D(u_src, vUv).rgb;
+  float h = dot(c, vec3(0.299, 0.587, 0.114));
+  gl_FragColor = vec4(h, h, h, 1.0);
+}
+`,
+    colorBlitFrag = `
+precision highp float;
+uniform sampler2D u_src;
+varying vec2 vUv;
 void main() {
-  vec3 colorA = texture2D(u_textureA, vUv).rgb;
-  vec3 colorB = texture2D(u_textureB, vUv).rgb;
-  vec3 blendedColor = mix(colorA, colorB, u_blendFactor);
-  gl_FragColor = vec4(blendedColor, 1.0);
-}`;
+  gl_FragColor = vec4(texture2D(u_src, vUv).rgb, 1.0);
+}
+`,
+    blitVert = `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = vec4(position.xy, 0.0, 1.0);
+}
+`;
+
 const ld = {
         normal: 0,
         glow: 1,
-        edgeDetect: 2,
-        pixelate: 3,
-        moire: 4,
-        cartoon: 5,
-        hashGrid: 6,
-        ascii: 7
+        pixelate: 2,
+        moire: 3,
+        cartoon: 4,
+        hashGrid: 5,
+        ascii: 6,
+        crt: 7,
+        thermal: 8,
+        glitch: 9,
+        vhs: 10,
+        hologram: 11
     },
     In = {
         rainbow: 0,
         fire: 1,
         ice: 2,
-        audioRGB: 4,
         monochrome: 3,
+        audioRGB: 4,
         spectrum: 5,
         reactivePulse: 6,
-        velocity: 7
+        velocity: 7,
+        cyberpunk: 8,
+        vaporwave: 9,
+        matrix: 10
     };
 
 function EL() {
@@ -1354,7 +126,7 @@ function TL(t, e) {
 function ms(t, e, n) {
     return t * (1 - n) + e * n
 }
-export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
+export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g, P, threeDStateRef, threeDEnabledRef) {
         var Be, we;
         const y = () => {
                 const ge = new Uint8Array(1024),
@@ -1436,7 +208,7 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
             q = React.useRef(null),
             O = React.useRef(null),
             ee = React.useRef(null),
-            Q = React.useRef(((Be = c == null ? void 0 : c.freqData) == null ? void 0 : Be.length) || 128),
+            Q = React.useRef(((Be = (c == null ? void 0 : c.frequencyData) ?? (c == null ? void 0 : c.freqData)) == null ? void 0 : Be.length) || 128),
             oe = React.useRef(null),
             ie = React.useRef(null),
             I = React.useRef(0),
@@ -1476,6 +248,26 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
             D = React.useRef(null),
             B = React.useRef(null),
             Y = React.useRef(null),
+            heightMapRT = React.useRef(null),
+            displayMapRT = React.useRef(null),
+            displayBlitScene = React.useRef(null),
+            displayBlitMesh = React.useRef(null),
+            heightBlitScene = React.useRef(null),
+            heightBlitMesh = React.useRef(null),
+            gallerySeamBlitScene = React.useRef(null),
+            gallerySeamBlitMesh = React.useRef(null),
+            blitCamera = React.useRef(null),
+            canvasDomRef = React.useRef(null),
+            galleryFacesRT = React.useRef(null),
+            galleryFloatingRT = React.useRef(null),
+            galleryFaceState = React.useRef(createGalleryFaceState()),
+            galleryFloatingState = React.useRef(createFloatingObjectState()),
+            galleryFaceCursor = React.useRef(0),
+            galleryFloatingCursor = React.useRef(0),
+            galleryInitialized = React.useRef(!1),
+            galleryWarmup = React.useRef(!1),
+            wasGalleryReadyRef = React.useRef(!1),
+            mainCanvasSizeRef = React.useRef({ w: 0, h: 0 }),
             Z = React.useRef(e.visualModeFromIndex ?? 0),
             xe = React.useRef(e.visualModeToIndex ?? 0),
             ae = React.useRef(e.visualModeBlend ?? 1),
@@ -1485,6 +277,11 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
         React.useRef(0);
         const de = React.useRef(0);
         React.useRef(0), React.useRef(0);
+        const Pn = React.useRef(new THREE.Vector2(.5, .5)),
+            mouseDirRef = React.useRef(new THREE.Vector3(0, 0, 1)),
+            sphereCenterRef = React.useRef(new THREE.Vector3),
+            $i = React.useRef(new THREE.Raycaster),
+            qi = React.useRef(new THREE.Vector2);
         const he = React.useCallback(W => {
             var jn;
             if (!E.current || !O.current || !S.current || !F.current || !oe.current || !ie.current || !Ie.current || !vt.current || !ht.current || !b.current || !D.current || !B.current || !Y.current) {
@@ -1516,14 +313,72 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                 const pr = .2 + (Nt.cubeRotationSpeed ?? 0);
                 it.cube += ve * pr * le, it.smoothSpiral += ve * (Nt.smoothSpiralSpeed ?? 0) * le, Je.current[yt] += ve * ce * le
             }
-            X.u_time.value = ge / 1e3, X.u_integratedTime.value = st.current, X.u_rainbowPhase.value = Ye.current, X.hasOwnProperty("u_visualModeFromIndex") && (X.u_visualModeFromIndex.value = Z.current), X.hasOwnProperty("u_visualModeToIndex") && (X.u_visualModeToIndex.value = xe.current), X.hasOwnProperty("u_visualModeBlend") && (X.u_visualModeBlend.value = ae.current), X.u_globalTimeScale.value !== u.current.globalTimeScale && (X.u_globalTimeScale.value = u.current.globalTimeScale), X.u_globalDistortionScale.value !== u.current.globalDistortionScale && (X.u_globalDistortionScale.value = u.current.globalDistortionScale), X.u_globalSymmetryOffsetSpeed.value !== u.current.globalSymmetryOffsetSpeed && (X.u_globalSymmetryOffsetSpeed.value = u.current.globalSymmetryOffsetSpeed), X.u_uvScale.value !== u.current.uvScale && (X.u_uvScale.value = u.current.uvScale), X.u_globalAudioSensitivity.value !== u.current.globalAudioSensitivity && (X.u_globalAudioSensitivity.value = u.current.globalAudioSensitivity), X.u_feedback_mix.value !== u.current.feedbackMix && (X.u_feedback_mix.value = u.current.feedbackMix), X.u_rainbowAnimationSpeed.value !== u.current.rainbowAnimationSpeed && (X.u_rainbowAnimationSpeed.value = u.current.rainbowAnimationSpeed);
+            const tdGallery = threeDStateRef == null ? void 0 : threeDStateRef.current,
+                wantsGallery = threeDEnabledRef != null && threeDEnabledRef.current && tdGallery != null && tdGallery.isGallery,
+                galleryReady = wantsGallery && tdGallery.enabled && tdGallery.scene && tdGallery.wallMeshes && tdGallery.camera && galleryFacesRT.current && galleryFloatingRT.current;
+            wantsGallery || (galleryFaceCursor.current = 0);
+            if (wasGalleryReadyRef.current && !galleryReady) {
+                const container = t.current;
+                container && container.clientWidth > 0 && container.clientHeight > 0 && X.u_resolution && X.u_resolution.value.set(container.clientWidth, container.clientHeight);
+                X.u_uvScale.value = u.current.uvScale ?? .8;
+                X.u_galleryFaceIndex && (X.u_galleryFaceIndex.value = -1);
+                tdGallery && (tdGallery.brushActive = !1);
+                galleryInitialized.current = !1;
+                for (const rt of [oe.current, ie.current, Ie.current, vt.current]) {
+                    rt && (E.current.setRenderTarget(rt), E.current.clear());
+                }
+                E.current.setRenderTarget(null);
+                I.current = 0;
+                He.current = !1;
+            }
+            wasGalleryReadyRef.current = galleryReady;
+            X.u_time.value = ge / 1e3, X.u_integratedTime.value = st.current, X.u_rainbowPhase.value = Ye.current;
+            galleryReady || (X.hasOwnProperty("u_visualModeFromIndex") && (X.u_visualModeFromIndex.value = Z.current), X.hasOwnProperty("u_visualModeToIndex") && (X.u_visualModeToIndex.value = xe.current), X.hasOwnProperty("u_visualModeBlend") && (X.u_visualModeBlend.value = ae.current));
+            X.u_globalTimeScale.value !== u.current.globalTimeScale && (X.u_globalTimeScale.value = u.current.globalTimeScale), X.u_globalDistortionScale.value !== u.current.globalDistortionScale && (X.u_globalDistortionScale.value = u.current.globalDistortionScale), X.u_globalSymmetryOffsetSpeed.value !== u.current.globalSymmetryOffsetSpeed && (X.u_globalSymmetryOffsetSpeed.value = u.current.globalSymmetryOffsetSpeed), galleryReady || X.u_uvScale.value !== u.current.uvScale && (X.u_uvScale.value = u.current.uvScale), X.u_globalAudioSensitivity.value !== u.current.globalAudioSensitivity && (X.u_globalAudioSensitivity.value = u.current.globalAudioSensitivity), X.u_feedback_mix.value !== u.current.feedbackMix && (X.u_feedback_mix.value = u.current.feedbackMix), X.u_rainbowAnimationSpeed.value !== u.current.rainbowAnimationSpeed && (X.u_rainbowAnimationSpeed.value = u.current.rainbowAnimationSpeed);
             const Se = w.current;
             X.u_asciiCharSize.value !== Se && (X.u_asciiCharSize.value = Se);
             const _t = M.current;
             X.u_pixelationFactor.value !== _t && (X.u_pixelationFactor.value = _t);
+            const mouseRadius = u.current.mouseRadius ?? .35,
+                mouseDistortion = u.current.mouseDistortion ?? .8,
+                mouseSymmetry = u.current.mouseSymmetry ?? 2,
+                mouseAttract = u.current.mouseAttract ?? .3,
+                mouseTwist = u.current.mouseTwist ?? .5;
+            X.u_mouseRadius && X.u_mouseRadius.value !== mouseRadius && (X.u_mouseRadius.value = mouseRadius), X.u_mouseDistortion && X.u_mouseDistortion.value !== mouseDistortion && (X.u_mouseDistortion.value = mouseDistortion), X.u_mouseSymmetry && X.u_mouseSymmetry.value !== mouseSymmetry && (X.u_mouseSymmetry.value = mouseSymmetry), X.u_mouseAttract && X.u_mouseAttract.value !== mouseAttract && (X.u_mouseAttract.value = mouseAttract),             X.u_mouseTwist && X.u_mouseTwist.value !== mouseTwist && (X.u_mouseTwist.value = mouseTwist);
+            X.u_galleryFaceIndex && X.u_galleryFaceIndex.value !== -1 && !galleryReady && (X.u_galleryFaceIndex.value = -1);
+            if (galleryReady && tdGallery.brushActive && tdGallery.wallMeshes && tdGallery.camera) {
+                qi.current.set(0, 0);
+                tdGallery.camera.updateMatrixWorld(true);
+                for (const wallMesh of tdGallery.wallMeshes) wallMesh.updateMatrixWorld(true);
+                $i.current.setFromCamera(qi.current, tdGallery.camera);
+                const gHits = $i.current.intersectObjects(tdGallery.wallMeshes, false);
+                if (gHits.length > 0) {
+                    const gHit = gHits[0];
+                    tdGallery.galleryFace = gHit.object.userData.faceIndex ?? 0;
+                    if (gHit.uv) {
+                        Pn.current.set(gHit.uv.x, gHit.uv.y);
+                    }
+                }
+                const growDur = 1.4,
+                    brushR = Math.min(mouseRadius, Math.max(0, (ge - (tdGallery.brushStartTime || ge)) / 1e3 / growDur) * mouseRadius);
+                X.u_mouseGalleryFace && (X.u_mouseGalleryFace.value = tdGallery.galleryFace ?? -1), X.u_mouseBrushActive && (X.u_mouseBrushActive.value = 1), X.u_mouseBrushRadius && (X.u_mouseBrushRadius.value = Math.max(.02, brushR))
+            } else if (!galleryReady && tdGallery && tdGallery.brushActive) {
+                const growDur = 1.4,
+                    brushR = Math.min(mouseRadius, Math.max(0, (ge - (tdGallery.brushStartTime || ge)) / 1e3 / growDur) * mouseRadius);
+                X.u_mouseGalleryFace && (X.u_mouseGalleryFace.value = -1);
+                X.u_mouseBrushActive && (X.u_mouseBrushActive.value = 1);
+                X.u_mouseBrushRadius && (X.u_mouseBrushRadius.value = Math.max(.02, brushR));
+            } else {
+                X.u_mouseGalleryFace && (X.u_mouseGalleryFace.value = -1);
+                X.u_mouseBrushActive && (X.u_mouseBrushActive.value = 0);
+                X.u_mouseBrushRadius && (X.u_mouseBrushRadius.value = 0);
+            }
+            const map3d = threeDEnabledRef != null && threeDEnabledRef.current && !(tdGallery != null && tdGallery.isGallery) ? 1 : 0,
+                sphereActive = map3d && threeDStateRef != null && threeDStateRef.current != null && threeDStateRef.current.mouseOnSphere ? 1 : 0;
+            X.u_mouseMapping3D && X.u_mouseMapping3D.value !== map3d && (X.u_mouseMapping3D.value = map3d), X.u_mouseSphereActive && X.u_mouseSphereActive.value !== sphereActive && (X.u_mouseSphereActive.value = sphereActive);
             const Mt = In[R.current] ?? 0,
                 wt = A.current;
-            X.u_globalColorMode.value !== Mt && (X.u_globalColorMode.value = Mt), X.u_forceGlobalColor.value !== wt && (X.u_forceGlobalColor.value = wt);
+            galleryReady || (X.u_globalColorMode.value !== Mt && (X.u_globalColorMode.value = Mt), X.u_forceGlobalColor.value !== (wt ? 1 : 0) && (X.u_forceGlobalColor.value = wt ? 1 : 0));
             const qt = Ue.current,
                 mt = G.current ? 1 : 0,
                 Dt = se.current ? 1 : 0;
@@ -1531,7 +386,7 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
             const Lt = L.current;
             Lt || console.error("patternNameToIndex map is not available in animate!");
             const Zt = X.u_layers.value;
-            if (Zt && Lt)
+            if (Zt && Lt && !galleryReady) {
                 for (let yt = 0; yt < 4; yt++) {
                     const Nt = `layer${yt+1}`,
                         it = u.current[Nt],
@@ -1545,7 +400,7 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                     ce.hasOwnProperty("blendAmount") && ce.blendAmount !== N && (ce.blendAmount = N);
                     const V = it.symmetry ?? 1;
                     ce.hasOwnProperty("symmetry") && ce.symmetry !== V && (ce.symmetry = V);
-                    const H = it.distortionStrength ?? 0;
+                    const H = it.distortion ?? it.distortionStrength ?? 0;
                     ce.hasOwnProperty("distortionStrength") && ce.distortionStrength !== H && (ce.distortionStrength = H);
                     const k = In[it.colorMode] ?? 0;
                     ce.hasOwnProperty("colorMode") && ce.colorMode !== k && (ce.colorMode = k);
@@ -1593,25 +448,378 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                     ce.hasOwnProperty("cubeSize") && ce.cubeSize !== gt && (ce.cubeSize = gt);
                     const dt = it.flowCurl ?? .4;
                     ce.hasOwnProperty("flowCurl") && ce.flowCurl !== dt && (ce.flowCurl = dt);
+                    const fs = it.flowSpeed ?? 0;
+                    ce.hasOwnProperty("flowSpeed") && ce.flowSpeed !== fs && (ce.flowSpeed = fs);
+                    const rc = it.rdComplexity ?? .5;
+                    ce.hasOwnProperty("rdComplexity") && ce.rdComplexity !== rc && (ce.rdComplexity = rc);
+                    const rs = it.rdSpotSize ?? .5;
+                    ce.hasOwnProperty("rdSpotSize") && ce.rdSpotSize !== rs && (ce.rdSpotSize = rs);
+                    const fi = it.fractalIterations ?? 4;
+                    ce.hasOwnProperty("fractalIterations") && ce.fractalIterations !== fi && (ce.fractalIterations = fi);
+                    const fa = it.fractalAngle ?? .5;
+                    ce.hasOwnProperty("fractalAngle") && ce.fractalAngle !== fa && (ce.fractalAngle = fa);
+                    const fsp = it.fractalSpeed ?? .3;
+                    ce.hasOwnProperty("fractalSpeed") && ce.fractalSpeed !== fsp && (ce.fractalSpeed = fsp);
+                    const ft = it.fractalThickness ?? .02;
+                    ce.hasOwnProperty("fractalThickness") && ce.fractalThickness !== ft && (ce.fractalThickness = ft);
+                    const lfx = it.lissajousFreqX ?? 3;
+                    ce.hasOwnProperty("lissajousFreqX") && ce.lissajousFreqX !== lfx && (ce.lissajousFreqX = lfx);
+                    const lfy = it.lissajousFreqY ?? 4;
+                    ce.hasOwnProperty("lissajousFreqY") && ce.lissajousFreqY !== lfy && (ce.lissajousFreqY = lfy);
+                    const lsp = it.lissajousSpeed ?? .2;
+                    ce.hasOwnProperty("lissajousSpeed") && ce.lissajousSpeed !== lsp && (ce.lissajousSpeed = lsp);
+                    const lt = it.lissajousThickness ?? .03;
+                    ce.hasOwnProperty("lissajousThickness") && ce.lissajousThickness !== lt && (ce.lissajousThickness = lt);
                     const Re = it.layerSymmetryOffsetSpeed ?? 0;
-                    ce.hasOwnProperty("layerSymmetryOffsetSpeed") && ce.layerSymmetryOffsetSpeed !== Re && (ce.layerSymmetryOffsetSpeed = Re), ce.hasOwnProperty("accumulatedSymmetryAngle") && (ce.accumulatedSymmetryAngle = Je.current[yt])
-                } else console.error("u_layers uniform not found or pattern map missing!");
+                    ce.hasOwnProperty("layerSymmetryOffsetSpeed") && ce.layerSymmetryOffsetSpeed !== Re && (ce.layerSymmetryOffsetSpeed = Re), ce.hasOwnProperty("accumulatedSymmetryAngle") && (ce.accumulatedSymmetryAngle = Je.current[yt]);
+                }
+            } else if (!Zt || !Lt) {
+                console.error("u_layers uniform not found or pattern map missing!");
+            }
+            {
+                const fd = (c == null ? void 0 : c.frequencyData) ?? (c == null ? void 0 : c.freqData);
+                if (fd && fd.length > 0) {
+                    let ws = 0,
+                        te = 0;
+                    for (let yi = 0; yi < fd.length; yi++) {
+                        const vl = fd[yi] / 255;
+                        ws += yi * vl, te += vl
+                    }
+                    de.current = te > 0 ? ws / te / fd.length : 0;
+                    const bb = Math.min(8, fd.length);
+                    let bs = 0;
+                    for (let yi = 0; yi < bb; yi++) bs += fd[yi];
+                    ke.current = Math.min(1, bs / (bb * 255))
+                } else ke.current = (c == null ? void 0 : c.beatStrength) ?? 0, de.current = (c == null ? void 0 : c.spectralCentroid) ?? 0;
+                ke.current === 0 && (G.current || se.current) && (ke.current = G.current ? .7 : .5), X.hasOwnProperty("u_beatStrength") && (X.u_beatStrength.value = ke.current), X.hasOwnProperty("u_spectralCentroid") && (X.u_spectralCentroid.value = de.current);
+                if (X.u_mouse) {
+                    const tdAnim = threeDStateRef == null ? void 0 : threeDStateRef.current;
+                    const tdGalleryAnim = tdAnim != null && tdAnim.isGallery ? tdAnim : null;
+                    const brush2d = !galleryReady && tdAnim != null && tdAnim.brushActive;
+                    const brushGallery = galleryReady && tdGalleryAnim != null && tdGalleryAnim.brushActive;
+                    const map3dAnim = threeDEnabledRef != null && threeDEnabledRef.current && !(tdGalleryAnim != null && tdGalleryAnim.isGallery) ? 1 : 0;
+                    const sphereActiveAnim = map3dAnim && tdAnim != null && tdAnim.mouseOnSphere ? 1 : 0;
+                    if (brush2d || brushGallery || sphereActiveAnim) {
+                        const mr = P && P.current ? P.current : Pn.current,
+                            mx = mr.x ?? mr[0] ?? .5,
+                            my = mr.y ?? mr[1] ?? .5;
+                        X.u_mouse.value.set(mx, my)
+                    }
+                }
+                X.u_mouseDir && X.u_mouseDir.value.copy(mouseDirRef.current)
+            }
             const oi = I.current === 0 ? oe.current : ie.current,
                 Vr = I.current === 0 ? ie.current : oe.current;
-            X.u_feedback_texture.value = oi.texture, E.current.setRenderTarget(Vr), E.current.clear(), E.current.render(S.current, F.current), I.current = 1 - I.current;
-            const si = Vr.texture,
-                rr = He.current ? vt.current : Ie.current,
-                ln = He.current ? Ie.current : vt.current;
-            if (B.current && B.current.uniforms) {
-                const yt = B.current.uniforms;
-                yt.u_textureA.value = rr.texture, yt.u_textureB.value = si;
-                const Nt = 1;
-                yt.u_blendFactor && yt.u_blendFactor.value !== Nt && (yt.u_blendFactor.value = Nt)
-            } else B.current && console.error("Blend material exists, but its uniforms are missing in animate loop.");
-            if (E.current.setRenderTarget(ln), E.current.clear(), E.current.render(D.current, F.current), E.current.setRenderTarget(null), E.current.clear(), b.current && (b.current.map = ln.texture), E.current.render(ht.current, F.current), He.current = !He.current, O.current && O.current.uniforms) {
-                const yt = O.current.uniforms;
-                yt.hasOwnProperty("u_beatStrength") && yt.u_beatStrength.value !== ke.current && (yt.u_beatStrength.value = ke.current), yt.hasOwnProperty("u_spectralCentroid") && yt.u_spectralCentroid.value !== de.current && (yt.u_spectralCentroid.value = de.current)
+            const td = threeDStateRef == null ? void 0 : threeDStateRef.current;
+            const galleryFaceOutputs = [];
+            const galleryFloatingOutputs = [];
+            if (galleryReady) {
+                if (consumeGalleryWarmupRequest()) {
+                    galleryWarmup.current = !0;
+                }
+                if (!galleryInitialized.current && galleryFacesRT.current && E.current) {
+                    galleryInitialized.current = !0;
+                    galleryWarmup.current = !0;
+                    for (const face of galleryFacesRT.current) {
+                        E.current.setRenderTarget(face.fbA);
+                        E.current.clear();
+                        E.current.setRenderTarget(face.fbB);
+                        E.current.clear();
+                        E.current.setRenderTarget(face.outA);
+                        E.current.clear();
+                        E.current.setRenderTarget(face.outB);
+                        E.current.clear();
+                        E.current.setRenderTarget(face.displayMap);
+                        E.current.clear();
+                        face.fbIdx = 0;
+                        face.blendFlip = !0;
+                        face.latestTexture = null;
+                    }
+                    for (const objTarget of galleryFloatingRT.current) {
+                        E.current.setRenderTarget(objTarget.fbA);
+                        E.current.clear();
+                        E.current.setRenderTarget(objTarget.fbB);
+                        E.current.clear();
+                        objTarget.fbIdx = 0;
+                        objTarget.blendFlip = !0;
+                        objTarget.latestTexture = null;
+                    }
+                    E.current.setRenderTarget(null);
+                }
+                const galleryContainer = t.current;
+                galleryContainer && galleryContainer.clientWidth > 0 && galleryContainer.clientHeight > 0 && X.u_resolution.value.set(galleryContainer.clientWidth, galleryContainer.clientHeight);
+                const savedIntegrated = X.u_integratedTime.value,
+                    savedUvScale = X.u_uvScale.value,
+                    savedMainJe = je.current.map((t) => ({ ...t })),
+                    savedResolution = X.u_resolution.value.clone(),
+                    savedVisualFrom = X.u_visualModeFromIndex?.value,
+                    savedVisualTo = X.u_visualModeToIndex?.value,
+                    savedVisualBlend = X.u_visualModeBlend?.value,
+                    savedGlobalColor = X.u_globalColorMode?.value,
+                    savedForceGlobal = X.u_forceGlobalColor?.value,
+                    savedPixelation = X.u_pixelationFactor?.value,
+                    savedAscii = X.u_asciiCharSize?.value,
+                    canvasResW = savedResolution.x,
+                    canvasResH = savedResolution.y,
+                    layerConfigs = [u.current.layer1, u.current.layer2, u.current.layer3, u.current.layer4];
+                try {
+                for (let gf = 0; gf < GALLERY_FACE_COUNT; gf++) {
+                    const faceState = galleryFaceState.current[gf];
+                    for (let yt = 0; yt < 4; yt++) {
+                        const Nt = layerConfigs[yt];
+                        if (!Nt) continue;
+                        const it = faceState.times[yt],
+                            ce = Nt.layerSymmetryOffsetSpeed ?? 0;
+                        it.turing += ve * (Nt.turingSpeed ?? 0) * le;
+                        it.spiralNoise += ve * (Nt.spiralNoiseSpeed ?? 0) * le;
+                        it.flow += ve * (Nt.flowSpeed ?? 0) * le;
+                        it.cube += ve * (.2 + (Nt.cubeRotationSpeed ?? 0)) * le;
+                        it.smoothSpiral += ve * (Nt.smoothSpiralSpeed ?? 0) * le;
+                        faceState.symmetry[yt] += ve * ce * le;
+                    }
+                    faceState.integrated += ve * le;
+                }
+                for (let oi = 0; oi < FLOATING_OBJECT_COUNT; oi++) {
+                    const objState = galleryFloatingState.current[oi];
+                    for (let yt = 0; yt < 4; yt++) {
+                        const Nt = layerConfigs[yt];
+                        if (!Nt) continue;
+                        const it = objState.times[yt],
+                            ce = Nt.layerSymmetryOffsetSpeed ?? 0;
+                        it.turing += ve * (Nt.turingSpeed ?? 0) * le;
+                        it.spiralNoise += ve * (Nt.spiralNoiseSpeed ?? 0) * le;
+                        it.flow += ve * (Nt.flowSpeed ?? 0) * le;
+                        it.cube += ve * (.2 + (Nt.cubeRotationSpeed ?? 0)) * le;
+                        it.smoothSpiral += ve * (Nt.smoothSpiralSpeed ?? 0) * le;
+                        objState.symmetry[yt] += ve * ce * le;
+                    }
+                    objState.integrated += ve * le;
+                }
+                const brushFace = tdGallery.brushActive && tdGallery.galleryFace >= 0 ? tdGallery.galleryFace : -1;
+                const facesThisFrame = [];
+                const galleryBlendSpeed = u.current.blendSpeedFactor ?? 1;
+                const galleryTransitioning = isGalleryContentTransitionActive(ge);
+                const renderAllGallerySurfaces = galleryWarmup.current || galleryTransitioning;
+                const galleryWallStacks = getGalleryWallStacksForRender(ge, galleryBlendSpeed);
+                const galleryIntegratedTimes = getGalleryFaceIntegratedTimes(galleryFaceState.current, galleryWallStacks);
+                const galleryDistortionFallback = u.current.globalDistortionScale ?? 1;
+                if (renderAllGallerySurfaces) {
+                    for (let gf = 0; gf < GALLERY_FACE_COUNT; gf++) facesThisFrame.push(gf);
+                    if (galleryWarmup.current) galleryWarmup.current = !1;
+                } else {
+                    if (brushFace >= 0) facesThisFrame.push(brushFace);
+                    for (let fi = 0; facesThisFrame.length < GALLERY_FACES_PER_FRAME; fi++) {
+                        const gf = (galleryFaceCursor.current + fi) % GALLERY_FACE_COUNT;
+                        if (!facesThisFrame.includes(gf)) facesThisFrame.push(gf);
+                    }
+                }
+                for (let fi = 0; fi < facesThisFrame.length; fi++) {
+                    const gf = facesThisFrame[fi],
+                        faceState = galleryFaceState.current[gf],
+                        wall = applyGalleryWallStack(X.u_layers.value, gf, Lt, In, u.current, ge, galleryBlendSpeed);
+                    applyGalleryWallModes(X, gf, In, ld, ge, galleryBlendSpeed);
+                    const faceSize = getGalleryFaceRenderSize(gf, canvasResW, canvasResH);
+                    for (let yt = 0; yt < 4; yt++) {
+                        const layerUni = X.u_layers.value[yt];
+                        layerUni && (layerUni.accumulatedSymmetryAngle = faceState.symmetry[yt]);
+                    }
+                    copyAccumulatedTimesTo(je.current, faceState.times);
+                    X.u_galleryFaceIndex && (X.u_galleryFaceIndex.value = gf);
+                    X.u_galleryFaceSeed && (X.u_galleryFaceSeed.value = GALLERY_FACE_SEEDS[gf]);
+                    if (X.u_galleryEdgeBlend) X.u_galleryEdgeBlend.value = 0;
+                    if (X.u_galleryNeighborIntegratedTime) {
+                        const neighborTimes = getGalleryEdgeNeighborTimes(gf, galleryIntegratedTimes);
+                        X.u_galleryNeighborIntegratedTime.value.set(
+                            neighborTimes[0], neighborTimes[1], neighborTimes[2], neighborTimes[3]
+                        );
+                    }
+                    if (X.u_galleryNeighborDistortion) {
+                        const neighborDistortion = getGalleryEdgeNeighborDistortion(
+                            gf, galleryWallStacks, galleryDistortionFallback
+                        );
+                        X.u_galleryNeighborDistortion.value.set(
+                            neighborDistortion[0], neighborDistortion[1], neighborDistortion[2], neighborDistortion[3]
+                        );
+                    }
+                    X.u_integratedTime.value = faceState.integrated + (wall?.timeOffset ?? 0);
+                    X.u_accumulatedTimes.value = je.current;
+                    X.u_resolution.value.set(faceSize.w, faceSize.h);
+                    X.u_uvScale.value = wall?.uvScale ?? u.current.uvScale ?? .8;
+                    const face = galleryFacesRT.current[gf],
+                        fbRead = face.fbIdx === 0 ? face.fbA : face.fbB,
+                        fbWrite = face.fbIdx === 0 ? face.fbB : face.fbA;
+                    X.u_feedback_texture.value = fbRead.texture;
+                    E.current.setRenderTarget(fbWrite);
+                    E.current.clear();
+                    E.current.render(S.current, F.current);
+                    face.fbIdx = 1 - face.fbIdx;
+                    const blendRead = face.blendFlip ? face.outA : face.outB,
+                        blendWrite = face.blendFlip ? face.outB : face.outA;
+                    if (B.current && B.current.uniforms) {
+                        const yt = B.current.uniforms;
+                        yt.u_textureA.value = blendRead.texture;
+                        yt.u_textureB.value = fbWrite.texture;
+                        yt.u_blendFactor && yt.u_blendFactor.value !== 1 && (yt.u_blendFactor.value = 1);
+                    }
+                    E.current.setRenderTarget(blendWrite);
+                    E.current.clear();
+                    E.current.render(D.current, F.current);
+                    face.blendFlip = !face.blendFlip;
+                    face.latestTexture = blendWrite.texture;
+                    galleryFaceOutputs[gf] = blendWrite.texture;
+                    if (u.current.patternDisplacementEnabled && heightBlitMesh.current && heightBlitScene.current && face.heightMap) {
+                        blitPatternHeightMap(
+                            E.current,
+                            heightBlitScene.current,
+                            blitCamera.current,
+                            heightBlitMesh.current,
+                            blendWrite.texture,
+                            face.heightMap
+                        );
+                    }
+                }
+                galleryFaceCursor.current = (galleryFaceCursor.current + facesThisFrame.length) % GALLERY_FACE_COUNT;
+
+                const floatingThisFrame = [];
+                if (renderAllGallerySurfaces) {
+                    for (let oi = 0; oi < FLOATING_OBJECT_COUNT; oi++) floatingThisFrame.push(oi);
+                } else {
+                    for (let fi = 0; fi < FLOATING_OBJECTS_PER_FRAME; fi++) {
+                        const oi = (galleryFloatingCursor.current + fi) % FLOATING_OBJECT_COUNT;
+                        if (!floatingThisFrame.includes(oi)) floatingThisFrame.push(oi);
+                    }
+                }
+                for (let fi = 0; fi < floatingThisFrame.length; fi++) {
+                    const oi = floatingThisFrame[fi];
+                    galleryFloatingOutputs[oi] = renderFloatingObjectTexture({
+                        renderer: E.current,
+                        shaderScene: S.current,
+                        shaderCamera: F.current,
+                        blendScene: D.current,
+                        blendMaterial: B.current,
+                        uniforms: X,
+                        objectIndex: oi,
+                        objectState: galleryFloatingState.current[oi],
+                        target: galleryFloatingRT.current[oi],
+                        patternNameToIndex: Lt,
+                        colorModeIndex: In,
+                        visualModeIndex: ld,
+                        globalParams: u.current,
+                        je: je.current,
+                        Je: Je.current,
+                        renderTimeMs: ge,
+                        blendSpeedFactor: galleryBlendSpeed,
+                    });
+                    if (u.current.patternDisplacementEnabled && heightBlitMesh.current && heightBlitScene.current) {
+                        const objTarget = galleryFloatingRT.current[oi];
+                        blitPatternHeightMap(
+                            E.current,
+                            heightBlitScene.current,
+                            blitCamera.current,
+                            heightBlitMesh.current,
+                            galleryFloatingOutputs[oi],
+                            objTarget?.heightMap
+                        );
+                    }
+                }
+                galleryFloatingCursor.current = (galleryFloatingCursor.current + floatingThisFrame.length) % FLOATING_OBJECT_COUNT;
+                } finally {
+                X.u_galleryFaceIndex && (X.u_galleryFaceIndex.value = -1);
+                X.u_integratedTime.value = savedIntegrated;
+                X.u_uvScale.value = savedUvScale;
+                X.u_resolution.value.copy(savedResolution);
+                X.u_visualModeFromIndex && savedVisualFrom != null && (X.u_visualModeFromIndex.value = savedVisualFrom);
+                X.u_visualModeToIndex && savedVisualTo != null && (X.u_visualModeToIndex.value = savedVisualTo);
+                X.u_visualModeBlend != null && savedVisualBlend != null && (X.u_visualModeBlend.value = savedVisualBlend);
+                X.u_globalColorMode && savedGlobalColor != null && (X.u_globalColorMode.value = savedGlobalColor);
+                X.u_forceGlobalColor != null && savedForceGlobal != null && (X.u_forceGlobalColor.value = savedForceGlobal);
+                X.u_pixelationFactor && savedPixelation != null && (X.u_pixelationFactor.value = savedPixelation);
+                X.u_asciiCharSize && savedAscii != null && (X.u_asciiCharSize.value = savedAscii);
+                copyAccumulatedTimesTo(je.current, savedMainJe);
+                X.u_accumulatedTimes.value = je.current;
+                for (let yt = 0; yt < 4; yt++) {
+                    const ce = X.u_layers.value[yt];
+                    ce && (ce.accumulatedSymmetryAngle = Je.current[yt]);
+                }
+                }
+            } else {
+                galleryInitialized.current = !1;
+                galleryWarmup.current = !1;
+                X.u_galleryFaceIndex && (X.u_galleryFaceIndex.value = -1);
+                X.u_feedback_texture.value = oi.texture;
+                E.current.setRenderTarget(Vr);
+                E.current.clear();
+                E.current.render(S.current, F.current);
+                I.current = 1 - I.current;
+                const si = Vr.texture,
+                    rr = He.current ? vt.current : Ie.current,
+                    lnRt = He.current ? Ie.current : vt.current;
+                if (B.current && B.current.uniforms) {
+                    const yt = B.current.uniforms;
+                    yt.u_textureA.value = rr.texture;
+                    yt.u_textureB.value = si;
+                    const Nt = 1;
+                    yt.u_blendFactor && yt.u_blendFactor.value !== Nt && (yt.u_blendFactor.value = Nt);
+                } else B.current && console.error("Blend material exists, but its uniforms are missing in animate loop.");
+                E.current.setRenderTarget(lnRt);
+                E.current.clear();
+                E.current.render(D.current, F.current);
+                galleryFaceOutputs.main = lnRt.texture;
             }
+            const ln = galleryFaceOutputs.main;
+            if (galleryReady && td != null) {
+                const useHeightmap = !!u.current.patternDisplacementEnabled;
+                td.setDisplacementEnabled && td.setDisplacementEnabled(useHeightmap);
+                td.setBaseDisplacement && td.setBaseDisplacement(u.current.patternDisplacement ?? 0.12);
+                if (td.wallMeshes && td.faceMaterials) {
+                    for (let gf = 0; gf < GALLERY_FACE_COUNT; gf++) {
+                        const faceTarget = galleryFacesRT.current?.[gf];
+                        const faceTex =
+                            faceTarget?.latestTexture ??
+                            galleryFaceOutputs[gf] ??
+                            null;
+                        if (!faceTex || !td.wallMeshes[gf]) continue;
+
+                        bindDisplaceableMeshTextures(
+                            {
+                                mesh: td.wallMeshes[gf],
+                                flatMaterial: td.faceMaterials[gf],
+                                displacedMaterial: td.faceDisplacedMaterials?.[gf],
+                            },
+                            {
+                                displayTexture: faceTex,
+                                heightMapTexture: faceTarget?.heightMap?.texture ?? null,
+                                useHeightmap,
+                            }
+                        );
+                    }
+                }
+                if (td.floatingObjects) {
+                    for (let oi = 0; oi < FLOATING_OBJECT_COUNT; oi++) {
+                        const objEntry = td.floatingObjects[oi];
+                        if (!objEntry) continue;
+                        const objTarget = galleryFloatingRT.current[oi];
+                        const objTex =
+                            galleryFloatingOutputs[oi] ??
+                            objTarget?.latestTexture ??
+                            objEntry.flatMaterial?.uniforms?.u_display?.value ??
+                            objEntry.flatMaterial?.map ??
+                            null;
+                        if (!objTex) continue;
+                        bindDisplaceableMeshTextures(objEntry, {
+                            displayTexture: objTex,
+                            heightMapTexture: objTarget?.heightMap?.texture ?? null,
+                            useHeightmap,
+                        });
+                    }
+                }
+                td.update && td.update(ve);
+                E.current.setRenderTarget(null);
+                E.current.setClearColor(0x030303, 1);
+                E.current.clear();
+                E.current.render(td.scene, td.camera);
+            } else E.current.setRenderTarget(null), E.current.clear(), b.current && ln && (b.current.map = ln), E.current.render(ht.current, F.current);
+            galleryReady || (He.current = !He.current)
         }, [c]);
         return React.useEffect(() => {
             var Me;
@@ -1620,7 +828,7 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                 ge = r,
                 X = e.visualModeBlend ?? 1;
             Z.current = e.visualModeFromIndex ?? ld[W] ?? 0, xe.current = e.visualModeToIndex ?? ld[W] ?? 0, ae.current = X, v.current = ge;
-            const ve = (Me = c == null ? void 0 : c.freqData) == null ? void 0 : Me.length;
+            const ve = (Me = (c == null ? void 0 : c.frequencyData) ?? (c == null ? void 0 : c.freqData)) == null ? void 0 : Me.length;
             ve && ve !== Q.current && (Q.current = ve, De.current = null, O.current && O.current.uniforms.u_frequency_bin_count && (O.current.uniforms.u_frequency_bin_count.value = ve))
         }, [e, n, r, o, s, a, l, d, h, p, g, c]), React.useEffect(() => {
             var rr, ln, jn, yt, Nt, it, ce, pr, T, N, V, H, k, _e, Ne, Ve, We, Ze, Ke, Xe, Ft, Qt, Ht, Sn, At, K, ze, be, $e, at, tt, qe, nt, gt, dt, Re, Ge, Ct, Ee, bt, Ut, Wt, Rt, Xn, bn, da, ha, pa, ma, ga, va, _a, lt, kt, gn, Jt, wn, It, ai, mo, Ot, Hr, Gr, Wr, ya, Sa, Li, go, vo, jl, Xl, bp, wp, Ap, Cp, Rp, Pp, Lp, Ip, Op, Dp, Np, Fp, Up, kp, zp, Bp, Vp, Hp, Gp, Wp, jp, Xp, $p, qp, Yp, Kp, Zp, Qp, Jp, em, tm, nm, rm, im, om, sm, am, lm, cm, um, fm, dm, hm, pm, mm, gm, vm, _m, ym;
@@ -1631,13 +839,13 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                 ve = new THREE.WebGLRenderer({
                     antialias: !0
                 });
-            ve.setSize(ge, X), ve.setPixelRatio(window.devicePixelRatio), ve.autoClear = !1, W.appendChild(ve.domElement), E.current = ve;
+            ve.setSize(ge, X), ve.setPixelRatio(window.devicePixelRatio), ve.autoClear = !1, W.appendChild(ve.domElement), E.current = ve, canvasDomRef.current = ve.domElement;
             const Me = new THREE.Scene;
             S.current = Me;
             const et = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 10);
-            et.position.z = 1, F.current = et, Q.current = ((rr = c == null ? void 0 : c.freqData) == null ? void 0 : rr.length) || 128;
+            et.position.z = 1, F.current = et, Q.current = ((rr = (c == null ? void 0 : c.frequencyData) ?? (c == null ? void 0 : c.freqData)) == null ? void 0 : rr.length) || 128;
             const le = Q.current,
-                C = (c == null ? void 0 : c.freqData) || new Uint8Array(le).fill(0);
+                C = ((c == null ? void 0 : c.frequencyData) ?? (c == null ? void 0 : c.freqData)) || new Uint8Array(le).fill(0);
             if (!f.current) {
                 const An = new THREE.DataTexture(C, le, 1, THREE.RedFormat, THREE.UnsignedByteType);
                 An.needsUpdate = !0, f.current = An
@@ -1649,7 +857,44 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                 magFilter: THREE.LinearFilter,
                 stencilBuffer: !1
             };
-            oe.current = new THREE.WebGLRenderTarget(ge, X, re), ie.current = new THREE.WebGLRenderTarget(ge, X, re), Ie.current = new THREE.WebGLRenderTarget(ge, X, re), vt.current = new THREE.WebGLRenderTarget(ge, X, re), j.current = EL(), $.current = y(), fe.current = m();
+            oe.current = new THREE.WebGLRenderTarget(ge, X, re), ie.current = new THREE.WebGLRenderTarget(ge, X, re), Ie.current = new THREE.WebGLRenderTarget(ge, X, re), vt.current = new THREE.WebGLRenderTarget(ge, X, re);
+            galleryFacesRT.current = createGalleryFaceTargets(THREE, ge, X, re);
+            galleryFloatingRT.current = createFloatingObjectTargets(THREE, ge, X, re);
+            const byteRT = {
+                format: THREE.RGBAFormat,
+                type: THREE.UnsignedByteType,
+                minFilter: THREE.LinearFilter,
+                magFilter: THREE.LinearFilter,
+                stencilBuffer: !1
+            };
+            heightMapRT.current = new THREE.WebGLRenderTarget(ge, X, byteRT);
+            displayMapRT.current = new THREE.WebGLRenderTarget(ge, X, byteRT);
+            const blitPlane = new THREE.PlaneGeometry(2, 2),
+                blitCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            blitCamera.current = blitCam;
+            const displayBlitMat = new THREE.ShaderMaterial({
+                    vertexShader: blitVert,
+                    fragmentShader: colorBlitFrag,
+                    uniforms: { u_src: { value: null } },
+                    depthTest: !1,
+                    depthWrite: !1
+                }),
+                heightBlitMat = new THREE.ShaderMaterial({
+                    vertexShader: blitVert,
+                    fragmentShader: heightBlitFrag,
+                    uniforms: { u_src: { value: null } },
+                    depthTest: !1,
+                    depthWrite: !1
+                }),
+                displayBlitSc = new THREE.Scene,
+                heightBlitSc = new THREE.Scene,
+                displayBlitPl = new THREE.Mesh(blitPlane, displayBlitMat),
+                heightBlitPl = new THREE.Mesh(blitPlane.clone(), heightBlitMat);
+            displayBlitSc.add(displayBlitPl), heightBlitSc.add(heightBlitPl), displayBlitScene.current = displayBlitSc, displayBlitMesh.current = displayBlitPl, heightBlitScene.current = heightBlitSc, heightBlitMesh.current = heightBlitPl;
+            const gallerySeamBlit = createGallerySeamBlitPass();
+            gallerySeamBlitScene.current = gallerySeamBlit.scene;
+            gallerySeamBlitMesh.current = gallerySeamBlit.mesh;
+            j.current = EL(), $.current = y(), fe.current = m();
             const te = u.current,
                 Ae = [te.layer1, te.layer2, te.layer3, te.layer4];
             pe.current.forEach((An, Tr) => {
@@ -1731,7 +976,7 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                             value: In[R.current] ?? 0
                         },
                         u_forceGlobalColor: {
-                            value: A.current
+                            value: A.current ? 1 : 0
                         },
                         u_asciiCharSize: {
                             value: w.current
@@ -1745,7 +990,7 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                                 blendTargetType: Se ? Se[(jn = u.current.layer1) == null ? void 0 : jn.blendTargetType] ?? 0 : 0,
                                 blendAmount: ((yt = u.current.layer1) == null ? void 0 : yt.blendAmount) ?? 0,
                                 symmetry: ((Nt = u.current.layer1) == null ? void 0 : Nt.symmetry) ?? 1,
-                                distortionStrength: ((it = u.current.layer1) == null ? void 0 : it.distortionStrength) ?? 0,
+                                distortionStrength: ((it = u.current.layer1) == null ? void 0 : it.distortion) ?? ((it = u.current.layer1) == null ? void 0 : it.distortionStrength) ?? 0,
                                 colorMode: In[(ce = u.current.layer1) == null ? void 0 : ce.colorMode] ?? 0,
                                 blendTargetColorMode: In[(pr = u.current.layer1) == null ? void 0 : pr.blendTargetColorMode] ?? In[(T = u.current.layer1) == null ? void 0 : T.colorMode] ?? 0,
                                 color1: new THREE.Vector3(0, 0, 0),
@@ -1772,7 +1017,18 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                                 flowComplexity: ((be = u.current.layer1) == null ? void 0 : be.flowComplexity) ?? .6,
                                 cubeSize: (($e = u.current.layer1) == null ? void 0 : $e.cubeSize) ?? .5,
                                 flowCurl: ((at = u.current.layer1) == null ? void 0 : at.flowCurl) ?? .4,
+                                flowSpeed: ((at = u.current.layer1) == null ? void 0 : at.flowSpeed) ?? 0,
+                                rdComplexity: ((at = u.current.layer1) == null ? void 0 : at.rdComplexity) ?? .5,
+                                rdSpotSize: ((at = u.current.layer1) == null ? void 0 : at.rdSpotSize) ?? .5,
                                 layerSymmetryOffsetSpeed: ((tt = u.current.layer1) == null ? void 0 : tt.layerSymmetryOffsetSpeed) ?? 0,
+                                fractalIterations: ((it = u.current.layer1) == null ? void 0 : it.fractalIterations) ?? 4,
+                                fractalAngle: ((it = u.current.layer1) == null ? void 0 : it.fractalAngle) ?? .5,
+                                fractalSpeed: ((it = u.current.layer1) == null ? void 0 : it.fractalSpeed) ?? .3,
+                                fractalThickness: ((it = u.current.layer1) == null ? void 0 : it.fractalThickness) ?? .02,
+                                lissajousFreqX: ((it = u.current.layer1) == null ? void 0 : it.lissajousFreqX) ?? 3,
+                                lissajousFreqY: ((it = u.current.layer1) == null ? void 0 : it.lissajousFreqY) ?? 4,
+                                lissajousSpeed: ((it = u.current.layer1) == null ? void 0 : it.lissajousSpeed) ?? .2,
+                                lissajousThickness: ((it = u.current.layer1) == null ? void 0 : it.lissajousThickness) ?? .03,
                                 accumulatedSymmetryAngle: 0
                             }, {
                                 patternType: Se ? Se[(qe = u.current.layer2) == null ? void 0 : qe.patternType] ?? 0 : 0,
@@ -1807,6 +1063,14 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                                 cubeSize: ((mo = u.current.layer2) == null ? void 0 : mo.cubeSize) ?? .5,
                                 flowCurl: ((Ot = u.current.layer2) == null ? void 0 : Ot.flowCurl) ?? .5,
                                 layerSymmetryOffsetSpeed: ((Hr = u.current.layer2) == null ? void 0 : Hr.layerSymmetryOffsetSpeed) ?? 0,
+                                fractalIterations: ((it = u.current.layer2) == null ? void 0 : it.fractalIterations) ?? 4,
+                                fractalAngle: ((it = u.current.layer2) == null ? void 0 : it.fractalAngle) ?? .5,
+                                fractalSpeed: ((it = u.current.layer2) == null ? void 0 : it.fractalSpeed) ?? .3,
+                                fractalThickness: ((it = u.current.layer2) == null ? void 0 : it.fractalThickness) ?? .02,
+                                lissajousFreqX: ((it = u.current.layer2) == null ? void 0 : it.lissajousFreqX) ?? 3,
+                                lissajousFreqY: ((it = u.current.layer2) == null ? void 0 : it.lissajousFreqY) ?? 4,
+                                lissajousSpeed: ((it = u.current.layer2) == null ? void 0 : it.lissajousSpeed) ?? .2,
+                                lissajousThickness: ((it = u.current.layer2) == null ? void 0 : it.lissajousThickness) ?? .03,
                                 accumulatedSymmetryAngle: 0
                             }, {
                                 patternType: Se ? Se[(Gr = u.current.layer3) == null ? void 0 : Gr.patternType] ?? 0 : 0,
@@ -1840,13 +1104,21 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                                 flowComplexity: ((Hp = u.current.layer3) == null ? void 0 : Hp.flowComplexity) ?? .5,
                                 flowCurl: ((Gp = u.current.layer3) == null ? void 0 : Gp.flowCurl) ?? .6,
                                 layerSymmetryOffsetSpeed: ((Wp = u.current.layer3) == null ? void 0 : Wp.layerSymmetryOffsetSpeed) ?? 0,
+                                fractalIterations: ((it = u.current.layer3) == null ? void 0 : it.fractalIterations) ?? 4,
+                                fractalAngle: ((it = u.current.layer3) == null ? void 0 : it.fractalAngle) ?? .5,
+                                fractalSpeed: ((it = u.current.layer3) == null ? void 0 : it.fractalSpeed) ?? .3,
+                                fractalThickness: ((it = u.current.layer3) == null ? void 0 : it.fractalThickness) ?? .02,
+                                lissajousFreqX: ((it = u.current.layer3) == null ? void 0 : it.lissajousFreqX) ?? 3,
+                                lissajousFreqY: ((it = u.current.layer3) == null ? void 0 : it.lissajousFreqY) ?? 4,
+                                lissajousSpeed: ((it = u.current.layer3) == null ? void 0 : it.lissajousSpeed) ?? .2,
+                                lissajousThickness: ((it = u.current.layer3) == null ? void 0 : it.lissajousThickness) ?? .03,
                                 accumulatedSymmetryAngle: 0
                             }, {
                                 patternType: Se ? Se[(jp = u.current.layer4) == null ? void 0 : jp.patternType] ?? 0 : 0,
                                 blendTargetType: Se ? Se[(Xp = u.current.layer4) == null ? void 0 : Xp.blendTargetType] ?? 0 : 0,
                                 blendAmount: (($p = u.current.layer4) == null ? void 0 : $p.blendAmount) ?? 0,
                                 symmetry: ((qp = u.current.layer4) == null ? void 0 : qp.symmetry) ?? 1,
-                                distortionStrength: ((Yp = u.current.layer4) == null ? void 0 : Yp.distortionStrength) ?? 0,
+                                distortionStrength: ((Yp = u.current.layer4) == null ? void 0 : Yp.distortion) ?? ((Yp = u.current.layer4) == null ? void 0 : Yp.distortionStrength) ?? 0,
                                 colorMode: In[(Kp = u.current.layer4) == null ? void 0 : Kp.colorMode] ?? 0,
                                 blendTargetColorMode: In[(Zp = u.current.layer4) == null ? void 0 : Zp.blendTargetColorMode] ?? In[(Qp = u.current.layer4) == null ? void 0 : Qp.colorMode] ?? 0,
                                 color1: new THREE.Vector3(0, 0, 0),
@@ -1872,7 +1144,18 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                                 highSensitivity: ((gm = u.current.layer4) == null ? void 0 : gm.highSensitivity) ?? 1,
                                 flowComplexity: ((vm = u.current.layer4) == null ? void 0 : vm.flowComplexity) ?? .8,
                                 flowCurl: ((_m = u.current.layer4) == null ? void 0 : _m.flowCurl) ?? .3,
+                                flowSpeed: ((_m = u.current.layer4) == null ? void 0 : _m.flowSpeed) ?? 0,
+                                rdComplexity: ((_m = u.current.layer4) == null ? void 0 : _m.rdComplexity) ?? .5,
+                                rdSpotSize: ((_m = u.current.layer4) == null ? void 0 : _m.rdSpotSize) ?? .5,
                                 layerSymmetryOffsetSpeed: ((ym = u.current.layer4) == null ? void 0 : ym.layerSymmetryOffsetSpeed) ?? 0,
+                                fractalIterations: ((it = u.current.layer4) == null ? void 0 : it.fractalIterations) ?? 4,
+                                fractalAngle: ((it = u.current.layer4) == null ? void 0 : it.fractalAngle) ?? .5,
+                                fractalSpeed: ((it = u.current.layer4) == null ? void 0 : it.fractalSpeed) ?? .3,
+                                fractalThickness: ((it = u.current.layer4) == null ? void 0 : it.fractalThickness) ?? .02,
+                                lissajousFreqX: ((it = u.current.layer4) == null ? void 0 : it.lissajousFreqX) ?? 3,
+                                lissajousFreqY: ((it = u.current.layer4) == null ? void 0 : it.lissajousFreqY) ?? 4,
+                                lissajousSpeed: ((it = u.current.layer4) == null ? void 0 : it.lissajousSpeed) ?? .2,
+                                lissajousThickness: ((it = u.current.layer4) == null ? void 0 : it.lissajousThickness) ?? .03,
                                 accumulatedSymmetryAngle: 0
                             }]
                         },
@@ -1887,6 +1170,54 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                         },
                         u_mouse: {
                             value: new THREE.Vector2(.5, .5)
+                        },
+                        u_mouseDir: {
+                            value: new THREE.Vector3(0, 0, 1)
+                        },
+                        u_mouseMapping3D: {
+                            value: 0
+                        },
+                        u_mouseSphereActive: {
+                            value: 0
+                        },
+                        u_galleryFaceIndex: {
+                            value: -1
+                        },
+                        u_galleryFaceSeed: {
+                            value: 0
+                        },
+                        u_galleryEdgeBlend: {
+                            value: GALLERY_EDGE_BLEND
+                        },
+                        u_galleryNeighborIntegratedTime: {
+                            value: new THREE.Vector4(0, 0, 0, 0)
+                        },
+                        u_galleryNeighborDistortion: {
+                            value: new THREE.Vector4(1, 1, 1, 1)
+                        },
+                        u_mouseGalleryFace: {
+                            value: -1
+                        },
+                        u_mouseBrushActive: {
+                            value: 0
+                        },
+                        u_mouseBrushRadius: {
+                            value: 0
+                        },
+                        u_mouseRadius: {
+                            value: u.current.mouseRadius ?? .35
+                        },
+                        u_mouseDistortion: {
+                            value: u.current.mouseDistortion ?? .8
+                        },
+                        u_mouseSymmetry: {
+                            value: u.current.mouseSymmetry ?? 2
+                        },
+                        u_mouseAttract: {
+                            value: u.current.mouseAttract ?? .3
+                        },
+                        u_mouseTwist: {
+                            value: u.current.mouseTwist ?? .5
                         },
                         u_isRandomizing: {
                             value: Le.current
@@ -1955,27 +1286,61 @@ export function useWebGL(t, e, n, r, i, o, s, a, l, c, f, d, h, p, g) {
                 }),
                 oi = new THREE.Mesh(Mt, Zt);
             Lt.add(oi), D.current = Lt, B.current = Zt, Y.current = oi, U.current = performance.now();
+            mainCanvasSizeRef.current = { w: ge, h: X };
+            for (const rt of [oe.current, ie.current, Ie.current, vt.current]) {
+                ve.setRenderTarget(rt);
+                ve.clear();
+            }
+            ve.setRenderTarget(null);
             const Vr = An => {
                 he(An), ee.current = requestAnimationFrame(Vr)
             };
             ee.current = requestAnimationFrame(Vr);
+            const Ti = An => {
+                const Tr = W.getBoundingClientRect();
+                if (Tr.width <= 0 || Tr.height <= 0) return;
+                const td = threeDStateRef == null ? void 0 : threeDStateRef.current,
+                    is3d = threeDEnabledRef != null && threeDEnabledRef.current;
+                if (is3d && td != null && td.isGallery) {
+                    /* gallery mouse comes from center-raycast in animate loop while brush is held */
+                } else if (is3d && td != null && td.mesh && td.camera) {
+                    qi.current.x = (An.clientX - Tr.left) / Tr.width * 2 - 1, qi.current.y = -((An.clientY - Tr.top) / Tr.height * 2 - 1);
+                    td.mesh.updateMatrixWorld(!0), td.camera.updateMatrixWorld(!0);
+                    $i.current.setFromCamera(qi.current, td.camera);
+                    const hits = $i.current.intersectObject(td.mesh, !1);
+                    if (hits.length > 0) {
+                        td.mesh.getWorldPosition(sphereCenterRef.current);
+                        const dir = hits[0].point.clone().sub(sphereCenterRef.current).normalize(),
+                            u = Math.atan2(dir.z, dir.x) / (Math.PI * 2) + .5,
+                            v = Math.asin(Math.max(-1, Math.min(1, dir.y))) / Math.PI + .5;
+                        Pn.current.set(u, v), mouseDirRef.current.copy(dir), td.mouseOnSphere = !0
+                    } else td.mouseOnSphere = !1
+                } else if (!is3d) Pn.current.set((An.clientX - Tr.left) / Tr.width, 1 - (An.clientY - Tr.top) / Tr.height)
+            };
+            W.addEventListener("pointermove", Ti);
             const si = () => {
                 var Ii, xa, Ma, Ea;
                 const An = W.clientWidth,
                     Tr = W.clientHeight;
-                E.current && (E.current.setSize(An, Tr), O.current && O.current.uniforms.u_resolution.value.set(An, Tr)), (Ii = oe.current) == null || Ii.setSize(An, Tr), (xa = ie.current) == null || xa.setSize(An, Tr), (Ma = Ie.current) == null || Ma.setSize(An, Tr), (Ea = vt.current) == null || Ea.setSize(An, Tr)
+                if (An <= 0 || Tr <= 0) return;
+                E.current && (E.current.setSize(An, Tr), O.current && O.current.uniforms.u_resolution.value.set(An, Tr)), (Ii = oe.current) == null || Ii.setSize(An, Tr), (xa = ie.current) == null || xa.setSize(An, Tr), (Ma = Ie.current) == null || Ma.setSize(An, Tr), (Ea = vt.current) == null || Ea.setSize(An, Tr), heightMapRT.current && heightMapRT.current.setSize(An, Tr), displayMapRT.current && displayMapRT.current.setSize(An, Tr), resizeGalleryFaceTargets(galleryFacesRT.current, An, Tr), resizeFloatingObjectTargets(galleryFloatingRT.current, An, Tr);
+                mainCanvasSizeRef.current = { w: An, h: Tr };
+                const td = threeDStateRef == null ? void 0 : threeDStateRef.current;
+                td != null && td.updateSize && td.updateSize()
             };
             return window.addEventListener("resize", si), () => {
                 var An, Tr, Ii, xa, Ma, Ea, Sm, xm, Mm, Em, Tm, bm, wm, Am, Cm, Rm, Pm, Lm, Im, Om, Dm, Nm, Fm, Um;
-                if (window.removeEventListener("resize", si), ee.current && cancelAnimationFrame(ee.current), (An = O.current) == null || An.dispose(), (Ii = (Tr = q.current) == null ? void 0 : Tr.geometry) == null || Ii.dispose(), (xa = j.current) == null || xa.dispose(), (Ma = $.current) == null || Ma.dispose(), (Ea = fe.current) == null || Ea.dispose(), (Sm = oe.current) == null || Sm.dispose(), (xm = ie.current) == null || xm.dispose(), (Mm = Ie.current) == null || Mm.dispose(), (Em = vt.current) == null || Em.dispose(), (bm = (Tm = b.current) == null ? void 0 : Tm.map) == null || bm.dispose(), (wm = b.current) == null || wm.dispose(), (Cm = (Am = x.current) == null ? void 0 : Am.geometry) == null || Cm.dispose(), (Pm = (Rm = B.current) == null ? void 0 : Rm.uniforms.u_textureA.value) == null || Pm.dispose(), (Im = (Lm = B.current) == null ? void 0 : Lm.uniforms.u_textureB.value) == null || Im.dispose(), (Om = B.current) == null || Om.dispose(), (Nm = (Dm = Y.current) == null ? void 0 : Dm.geometry) == null || Nm.dispose(), (Fm = E.current) == null || Fm.dispose(), W && ((Um = E.current) != null && Um.domElement)) try {
+                if (W.removeEventListener("pointermove", Ti), window.removeEventListener("resize", si), ee.current && cancelAnimationFrame(ee.current), (An = O.current) == null || An.dispose(), (Ii = (Tr = q.current) == null ? void 0 : Tr.geometry) == null || Ii.dispose(), (xa = j.current) == null || xa.dispose(), (Ma = $.current) == null || Ma.dispose(), (Ea = fe.current) == null || Ea.dispose(), (Sm = oe.current) == null || Sm.dispose(), (xm = ie.current) == null || xm.dispose(), (Mm = Ie.current) == null || Mm.dispose(), (Em = vt.current) == null || Em.dispose(), disposeGalleryFaceTargets(galleryFacesRT.current), galleryFacesRT.current = null, disposeFloatingObjectTargets(galleryFloatingRT.current), galleryFloatingRT.current = null, heightMapRT.current && heightMapRT.current.dispose(), displayMapRT.current && displayMapRT.current.dispose(), displayBlitMesh.current && (displayBlitMesh.current.geometry.dispose(), displayBlitMesh.current.material.dispose()), heightBlitMesh.current && (heightBlitMesh.current.geometry.dispose(), heightBlitMesh.current.material.dispose()), (bm = (Tm = b.current) == null ? void 0 : Tm.map) == null || bm.dispose(), (wm = b.current) == null || wm.dispose(), (Cm = (Am = x.current) == null ? void 0 : Am.geometry) == null || Cm.dispose(), (Pm = (Rm = B.current) == null ? void 0 : Rm.uniforms.u_textureA.value) == null || Pm.dispose(), (Im = (Lm = B.current) == null ? void 0 : Lm.uniforms.u_textureB.value) == null || Im.dispose(), (Om = B.current) == null || Om.dispose(), (Nm = (Dm = Y.current) == null ? void 0 : Dm.geometry) == null || Nm.dispose(), (Fm = E.current) == null || Fm.dispose(), W && ((Um = E.current) != null && Um.domElement)) try {
                     W.removeChild(E.current.domElement)
                 } catch (Ex) {
                     console.warn("Error removing canvas during cleanup:", Ex)
                 }
-                E.current = null, S.current = null
+                E.current = null, S.current = null, canvasDomRef.current = null
             }
         }, [t, f, a]), {
             uniforms: (we = O.current) == null ? void 0 : we.uniforms,
-            blendMaterialRef: B
+            blendMaterialRef: B,
+            shaderMaterialRef: O,
+            canvasRef: canvasDomRef
         }
     }

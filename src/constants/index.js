@@ -3,7 +3,7 @@
  */
 
 export { JOYRIDE_STEPS, TOOLTIP_COPY, AUDIO_REACTIVE_COLOR_MODES } from './joyrideSteps.js';
-export { SLIDER_CONFIG, GLOBAL_PARAM_KEYS, VISUAL_MODES, VISUAL_MODE_INDEX, COLOR_MODES } from './sliderConfig.js';
+export { SLIDER_CONFIG, GLOBAL_PARAM_KEYS, MOUSE_PARAM_KEYS, VISUAL_MODES, VISUAL_MODE_INDEX, COLOR_MODES } from './sliderConfig.js';
 export { CONTROL_STYLES, CANVAS_STYLES, APP_STYLES } from './controlStyles.js';
 export const PATTERN_TYPES = [
   'invisible',
@@ -14,6 +14,16 @@ export const PATTERN_TYPES = [
   'reactionDiff',
   'hyperFlow',
   'cubeGrid',
+  'kaleidoWave',
+  'crystal',
+  'plasma',
+  'aurora',
+  'inkDrop',
+  'stainedGlass',
+  'morph',
+  'prism',
+  'fractal',
+  'lissajous',
 ];
 
 export const PATTERN_TYPE_OPTIONS = ['invisible', ...PATTERN_TYPES.filter((t) => t !== 'invisible')];
@@ -57,6 +67,16 @@ export const PARAM_CONFIG = {
     'cubeRotationSpeed',
     'layerSymmetryOffsetSpeed',
   ],
+  kaleidoWave: ['symmetry', 'distortion', 'freq', 'flowSpeed', 'flowCurl'],
+  crystal: ['symmetry', 'distortion', 'voronoiScale', 'voronoiEdgeWidth'],
+  plasma: ['symmetry', 'distortion', 'freq', 'flowSpeed', 'flowComplexity'],
+  aurora: ['symmetry', 'distortion', 'freq', 'flowSpeed', 'flowCurl'],
+  inkDrop: ['symmetry', 'distortion', 'flowSpeed', 'rdComplexity', 'rdSpotSize'],
+  stainedGlass: ['symmetry', 'distortion', 'voronoiScale', 'voronoiEdgeWidth'],
+  morph: ['symmetry', 'distortion', 'flowSpeed', 'flowComplexity', 'flowCurl'],
+  prism: ['symmetry', 'distortion', 'freq', 'flowSpeed', 'turingScale'],
+  fractal: ['symmetry', 'distortion', 'fractalIterations', 'fractalAngle', 'fractalSpeed', 'fractalThickness'],
+  lissajous: ['symmetry', 'distortion', 'lissajousFreqX', 'lissajousFreqY', 'lissajousSpeed', 'lissajousThickness'],
 };
 
 export const DEFAULT_LAYER_PARAMS = {
@@ -96,6 +116,14 @@ export const DEFAULT_LAYER_PARAMS = {
   smoothSpiralTightness: 2.5,
   smoothSpiralThickness: 0.3,
   layerSymmetryOffsetSpeed: 0,
+  fractalIterations: 4,
+  fractalAngle: 0.5,
+  fractalSpeed: 0.3,
+  fractalThickness: 0.02,
+  lissajousFreqX: 3,
+  lissajousFreqY: 4,
+  lissajousSpeed: 0.2,
+  lissajousThickness: 0.03,
 };
 
 export const DEFAULT_LAYERS = {
@@ -138,4 +166,11 @@ export const DEFAULT_GLOBALS = {
   pixelationFactor: 100,
   rainbowAnimationSpeed: 0.1,
   asciiCharSize: 12,
+  mouseRadius: 0.35,
+  mouseDistortion: 0.8,
+  mouseSymmetry: 2,
+  mouseAttract: 0.3,
+  mouseTwist: 0.5,
+  patternDisplacementEnabled: false,
+  patternDisplacement: 0.12,
 };

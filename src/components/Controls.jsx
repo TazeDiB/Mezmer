@@ -6,6 +6,7 @@ import { jsx, jsxs } from 'react/jsx-runtime';
 import Joyride from 'react-joyride';
 import { TOOLTIP_COPY as cn, JOYRIDE_STEPS as ZL, AUDIO_REACTIVE_COLOR_MODES as W0 } from '../constants/joyrideSteps.js';
 import { CONTROL_STYLES as Qe } from '../constants/controlStyles.js';
+import { RANDOMIZER_THEMES, MOUSE_PARAM_KEYS } from '../constants/sliderConfig.js';
 
 const ne = { jsx, jsxs, Fragment: React.Fragment };
 const Bb = Joyride;
@@ -56,6 +57,16 @@ function Controls({
     onStartCapture: ye,
     onStopCapture: pe,
     onSourceSelect: je,
+    onSourceSelected,
+    activeTheme,
+    setActiveTheme,
+    onCopyPreset,
+    onLoadPreset,
+    presetCode,
+    setPresetCode,
+    onLoadFromUrl,
+    threeDEnabled,
+    setThreeDEnabled,
     autoRandomizeTimeInterval: Je,
     setAutoRandomizeTimeInterval: st,
     randomizeColorModes: U,
@@ -79,11 +90,14 @@ function Controls({
     }, []);
     if (!t) return console.warn("Controls: params not initialized."), null;
     const B = F || Ue;
+    const mt = je || onSourceSelected;
     const Y = () => (Ue ? pe() : ye()),
         Z = useCallback(W => {
             const { name: ge, value: X, type: ve, checked: Me } = W.target;
-            ge === "blendSpeedFactor" ? c(parseFloat(X)) : ge === "desktopSourceSelect" ? $(X) : M(ge, ve === "checkbox" ? Me : X, ve);
-        }, [c, $, M]),
+            if (ge === "blendSpeedFactor") c(parseFloat(X));
+            else if (ge === "desktopSourceSelect") mt ? mt(X) : $ && $(X);
+            else M(ge, ve === "checkbox" ? Me : X, ve);
+        }, [c, $, M, mt]),
         xe = t[e];
     if (!xe) return console.warn(`Controls: params[${e}] is undefined during render.`), null;
     if (!n) return console.warn("Controls: manualBlendProgress is undefined during render."), null;
@@ -253,7 +267,10 @@ function Controls({
                                         id: "desktopSourceSelect",
                                         name: "desktopSourceSelect",
                                         value: j,
-                                        onChange: W => je(W.target.value),
+                                        onChange: W => {
+                                            const X = W.target.value;
+                                            mt ? mt(X) : $ && $(X);
+                                        },
                                         disabled: Ue,
                                         children: I.map(W => ne.jsx("option", {
                                             value: W.id,
@@ -283,7 +300,24 @@ function Controls({
                     children: ["Randomization ", b.randomization ? "▼" : "▶"]
                 }), b.randomization && ne.jsxs("div", {
                     className: Qe.fieldsetContent,
-                    children: [ne.jsx("div", {
+                    children: [ne.jsxs("div", {
+                        className: Qe.controlGroup,
+                        title: "Select randomizer theme",
+                        children: [ne.jsx("label", {
+                            htmlFor: "randomizerTheme",
+                            children: "Theme:"
+                        }), ne.jsx("select", {
+                            id: "randomizerTheme",
+                            name: "randomizerTheme",
+                            value: activeTheme || "chaotic",
+                            onChange: W => setActiveTheme && setActiveTheme(W.target.value),
+                            disabled: r,
+                            children: Object.keys(RANDOMIZER_THEMES).map(W => ne.jsx("option", {
+                                value: W,
+                                children: W.charAt(0).toUpperCase() + W.slice(1)
+                            }, W))
+                        })]
+                    }), ne.jsx("div", {
                         className: Qe.controlGroup,
                         title: cn.randomizeAll,
                         children: ne.jsx("button", {
@@ -397,6 +431,51 @@ function Controls({
                             })]
                         }), O && ne.jsxs(ne.Fragment, {
                             children: [fe === "bpm" && i.autoRandomizeInterval && he("autoRandomizeInterval", Q), fe === "time" && i.autoRandomizeTimeInterval && he("autoRandomizeTimeInterval", Je)]
+                        })]
+                    }), ne.jsxs("div", {
+                        id: "preset-seeds-section",
+                        className: Qe.subSection,
+                        children: [ne.jsx("h4", {
+                            children: "Preset Seeds"
+                        }), ne.jsxs("div", {
+                            className: Qe.controlGroup,
+                            children: [ne.jsx("label", {
+                                htmlFor: "presetCodeInput",
+                                children: "Seed:"
+                            }), ne.jsx("input", {
+                                type: "text",
+                                id: "presetCodeInput",
+                                name: "presetCodeInput",
+                                value: presetCode || "",
+                                onChange: W => setPresetCode && setPresetCode(W.target.value),
+                                disabled: r,
+                                placeholder: "Paste seed code..."
+                            })]
+                        }), ne.jsxs("div", {
+                            className: Qe.controlGroup,
+                            children: [ne.jsx("button", {
+                                id: "button-copyPreset",
+                                onClick: onCopyPreset,
+                                disabled: r,
+                                children: "Copy Seed"
+                            }), ne.jsx("button", {
+                                id: "button-loadPreset",
+                                onClick: () => onLoadPreset && onLoadPreset(presetCode),
+                                disabled: r,
+                                children: "Load Seed"
+                            }), ne.jsx("button", {
+                                id: "button-loadFromUrl",
+                                onClick: onLoadFromUrl,
+                                disabled: r,
+                                children: "Load from URL"
+                            })]
+                        }), ne.jsx("p", {
+                            style: {
+                                fontSize: "0.75em",
+                                color: "#888",
+                                margin: "4px 0 0"
+                            },
+                            children: "Share seeds via URL hash"
                         })]
                     })]
                 })]
@@ -518,7 +597,56 @@ function Controls({
                                 children: W.charAt(0).toUpperCase() + W.slice(1)
                             }, W))
                         })]
-                    }), f === "pixelate" && i.pixelationFactor && he("pixelationFactor", _, !0), f === "ascii" && i.asciiCharSize && he("asciiCharSize", v, !0), ne.jsxs("div", {
+                    }), ne.jsx("div", {
+                        className: Qe.controlGroup,
+                        title: "Toggle 3D preview mode",
+                        children: ne.jsxs("div", {
+                            className: Qe.checkboxLabel,
+                            children: [ne.jsx("input", {
+                                type: "checkbox",
+                                id: "threeDEnabledCheckbox",
+                                checked: !!threeDEnabled,
+                                onChange: W => setThreeDEnabled && setThreeDEnabled(W.target.checked),
+                                disabled: r
+                            }), ne.jsx("label", {
+                                htmlFor: "threeDEnabledCheckbox",
+                                children: "3D Gallery Room"
+                            })]
+                        })
+                    }), threeDEnabled ? ne.jsx("p", {
+                        style: {
+                            margin: "0 0 10px 0",
+                            fontSize: "0.82em",
+                            color: "#aaa",
+                            lineHeight: 1.45
+                        },
+                        children: "Click to lock mouse · WASD move · hold LMB to paint · scroll radius · RMB randomize FX · Esc unlock"
+                    }) : ne.jsx("p", {
+                        style: {
+                            margin: "0 0 10px 0",
+                            fontSize: "0.82em",
+                            color: "#aaa",
+                            lineHeight: 1.45
+                        },
+                        children: "Hold LMB to paint · scroll brush radius · RMB randomize FX"
+                    }), threeDEnabled && ne.jsx("div", {
+                        className: Qe.controlGroup,
+                        title: "Morph gallery walls using pattern brightness as a heightmap",
+                        children: ne.jsxs("div", {
+                            className: Qe.checkboxLabel,
+                            children: [ne.jsx("input", {
+                                type: "checkbox",
+                                id: "patternDisplacementEnabledCheckbox",
+                                name: "patternDisplacementEnabled",
+                                checked: !!ae.patternDisplacementEnabled,
+                                onChange: Z,
+                                disabled: r
+                            }), ne.jsx("label", {
+                                htmlFor: "patternDisplacementEnabledCheckbox",
+                                children: "Pattern Heightmap"
+                            })]
+                        })
+                    }), threeDEnabled && ae.patternDisplacementEnabled && i.patternDisplacement && he("patternDisplacement", ae.patternDisplacement, !0), f === "pixelate" && i.pixelationFactor && he("pixelationFactor", _, !0), f === "ascii" && i.asciiCharSize && he("asciiCharSize", v, !0), ne.jsxs("div", {
                         className: Qe.controlGroup,
                         children: [ne.jsx("label", {
                             htmlFor: "globalColorMode",
@@ -566,8 +694,25 @@ function Controls({
                                 })]
                             })]
                         })]
-                    }), he("feedbackMix", ae.feedbackMix, !0), he("globalTimeScale", ae.globalTimeScale, !0), he("globalDistortionScale", ae.globalDistortionScale, !0), he("uvScale", ae.uvScale, !0), he("blendSpeedFactor", l, !0), i.globalAudioSensitivity && he("globalAudioSensitivity", ae.globalAudioSensitivity, !0)]
+                    }), he("feedbackMix", ae.feedbackMix, !0), he("globalTimeScale", ae.globalTimeScale, !0), he("globalDistortionScale", ae.globalDistortionScale, !0), he("uvScale", ae.uvScale, !0), he("blendSpeedFactor", l, !0), i.globalAudioSensitivity && he("globalAudioSensitivity", ae.globalAudioSensitivity, !0), ne.jsx("p", {
+                        style: {
+                            fontSize: "0.85em",
+                            color: "#aaa",
+                            margin: "12px 0 6px",
+                            fontWeight: 600
+                        },
+                        children: "Mouse Influence"
+                    }), MOUSE_PARAM_KEYS.map(W => i[W] ? he(W, ae[W], !0) : null)]
                 })]
+            }), ne.jsx("p", {
+                style: {
+                    fontSize: "0.75em",
+                    color: "#888",
+                    marginTop: "12px",
+                    padding: "0 4px",
+                    lineHeight: 1.4
+                },
+                        children: "Shortcuts: 1-4=Layer, H=Panel, F=Fullscreen, M=3D toggle. Mouse FX: hold LMB to paint, RMB=randomize FX, scroll=brush radius. 3D gallery adds WASD move, Space/E=up, click to lock look, Esc=unlock"
             })]
         }), " "]
     })

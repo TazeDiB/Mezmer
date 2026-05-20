@@ -20,7 +20,11 @@ const DRUM_COOLDOWN_MS = 2000;
 
 export function useAudio(audioTextureRef, fftSize = 256, inputStream = null) {
   const halfFft = fftSize / 2;
-  const [audioData, setAudioData] = useState({ frequencyData: new Uint8Array(halfFft) });
+  const [audioData, setAudioData] = useState({
+    frequencyData: new Uint8Array(halfFft),
+    beatStrength: 0,
+    spectralCentroid: 0,
+  });
   const [isPlaying, setIsPlaying] = useState(false);
   const [estimatedBpm, setEstimatedBpm] = useState(120);
   const [isBassPresent, setIsBassPresent] = useState(false);
@@ -64,7 +68,7 @@ export function useAudio(audioTextureRef, fftSize = 256, inputStream = null) {
       analyserRef.current.fftSize = fftSize;
       const binCount = analyserRef.current.frequencyBinCount;
       dataArrayFreqRef.current = new Uint8Array(binCount);
-      setAudioData({ frequencyData: new Uint8Array(binCount) });
+      setAudioData({ frequencyData: new Uint8Array(binCount), beatStrength: 0, spectralCentroid: 0 });
     }
     const analyser = analyserRef.current;
     if (!gainRef.current) gainRef.current = ctx.createGain();
@@ -234,9 +238,27 @@ export function useAudio(audioTextureRef, fftSize = 256, inputStream = null) {
         tex.needsUpdate = true;
       }
     }
+    let beatStrength = 0;
+    let spectralCentroid = 0;
+    let weightedSum = 0;
+    let totalEnergy = 0;
+    for (let i = 0; i < binCount; i++) {
+      const val = freqData[i] / 255;
+      weightedSum += i * val;
+      totalEnergy += val;
+    }
+    spectralCentroid = totalEnergy > 0 ? (weightedSum / totalEnergy) / binCount : 0;
+    const beatBins = Math.min(8, binCount);
+    let bassEnergy = 0;
+    for (let i = 0; i < beatBins; i++) bassEnergy += freqData[i];
+    beatStrength = Math.min(1, bassEnergy / (beatBins * 255));
     frameCountRef.current += 1;
     if (frameCountRef.current % 3 === 0) {
-      setAudioData({ frequencyData: new Uint8Array(freqData) });
+      setAudioData({
+        frequencyData: new Uint8Array(freqData),
+        beatStrength,
+        spectralCentroid,
+      });
     }
     if (audioContextRef.current && activeSourceRef.current !== 'none') {
       animationFrameRef.current = requestAnimationFrame(analyseLoop);

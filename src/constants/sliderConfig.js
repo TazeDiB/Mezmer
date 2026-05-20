@@ -51,6 +51,20 @@ export const SLIDER_CONFIG = {
             step: .01,
             format: t => t.toFixed(1)
         },
+        freq: {
+            label: "Frequency",
+            min: 1,
+            max: 50,
+            step: .01,
+            format: t => t.toFixed(1)
+        },
+        flowSpeed: {
+            label: "Flow Speed",
+            min: 0,
+            max: 2,
+            step: .01,
+            format: t => t.toFixed(2)
+        },
         layer2RotSpeed: {
             label: "Grid Speed",
             min: -2,
@@ -491,23 +505,89 @@ export const SLIDER_CONFIG = {
             max: 24,
             step: 1,
             format: t => t.toFixed(0)
+        },
+        mouseRadius: {
+            label: "Mouse Radius",
+            min: 0.05,
+            max: 1.5,
+            step: 0.01,
+            format: t => t.toFixed(2)
+        },
+        mouseDistortion: {
+            label: "Mouse Distortion",
+            min: 0,
+            max: 2,
+            step: 0.01,
+            format: t => t.toFixed(2)
+        },
+        mouseSymmetry: {
+            label: "Mouse Symmetry",
+            min: 0,
+            max: 8,
+            step: 0.01,
+            format: t => t.toFixed(2)
+        },
+        mouseAttract: {
+            label: "Mouse Attract",
+            min: -1,
+            max: 1,
+            step: 0.01,
+            format: t => t.toFixed(2)
+        },
+        mouseTwist: {
+            label: "Mouse Twist",
+            min: -2,
+            max: 2,
+            step: 0.01,
+            format: t => t.toFixed(2)
+        },
+        patternDisplacement: {
+            label: "Pattern Displacement",
+            min: 0,
+            max: 0.5,
+            step: 0.005,
+            format: t => t.toFixed(3)
         }
 };
 
-export const PATTERN_TYPES_LIST = ["invisible", "wovenGrid", "hyperTuring", "hyperVoronoi", "spiralArms", "reactionDiff", "hyperFlow", "cubeGrid"];
+export const PATTERN_TYPES_LIST = ["invisible", "wovenGrid", "hyperTuring", "hyperVoronoi", "spiralArms", "reactionDiff", "hyperFlow", "cubeGrid", "kaleidoWave", "crystal", "plasma", "aurora", "inkDrop", "stainedGlass", "morph", "prism", "fractal", "lissajous"];
 export const PATTERN_TYPE_OPTIONS_LIST = ["invisible", ...PATTERN_TYPES_LIST.filter(t => t !== "invisible")];
 export const GLOBAL_PARAM_KEYS = ["feedbackMix", "globalTimeScale", "globalDistortionScale", "uvScale", "globalAudioSensitivity", "blendSpeedFactor", "pixelationFactor", "rainbowAnimationSpeed", "asciiCharSize"];
-export const VISUAL_MODES = ["normal", "glow", "edgeDetect", "pixelate", "moire", "cartoon", "hashGrid", "ascii"];
+export const MOUSE_PARAM_KEYS = ["mouseRadius", "mouseDistortion", "mouseSymmetry", "mouseAttract", "mouseTwist"];
+export const MOUSE_RANDOM_PARAM_KEYS = ["mouseDistortion", "mouseSymmetry", "mouseAttract", "mouseTwist"];
+export const THREE_D_PARAM_KEYS = ["patternDisplacement"];
+export const VISUAL_MODES = ["normal", "glow", "pixelate", "moire", "cartoon", "hashGrid", "ascii", "crt", "thermal", "glitch", "vhs", "hologram"];
 export const VISUAL_MODE_INDEX = {
     normal: 0,
     glow: 1,
-    edgeDetect: 2,
-    pixelate: 3,
-    moire: 4,
-    cartoon: 5,
-    hashGrid: 6,
-    ascii: 7,
-    stainedGlass: 8
+    pixelate: 2,
+    moire: 3,
+    cartoon: 4,
+    hashGrid: 5,
+    ascii: 6,
+    crt: 7,
+    thermal: 8,
+    glitch: 9,
+    vhs: 10,
+    hologram: 11
 };
-export const COLOR_MODES = ["rainbow", "fire", "ice", "monochrome", "audioRGB", "spectrum", "reactivePulse", "velocity"];
+export const COLOR_MODES = ["rainbow", "fire", "ice", "monochrome", "audioRGB", "spectrum", "reactivePulse", "velocity", "cyberpunk", "vaporwave", "matrix"];
 export const AUDIO_COLOR_MODES_LIST = ["audioRGB", "spectrum", "reactivePulse"];
+
+export const RANDOMIZER_THEMES = {
+  chaotic: {
+    patterns: ['hyperVoronoi', 'hyperTuring', 'plasma', 'morph', 'spiralArms', 'inkDrop', 'aurora', 'prism', 'fractal', 'lissajous'],
+    colors: ['rainbow', 'fire', 'audioRGB', 'spectrum', 'reactivePulse', 'velocity', 'cyberpunk', 'vaporwave'],
+    visualModes: ['glow', 'moire', 'hashGrid', 'normal', 'glitch', 'crt', 'hologram'],
+  },
+  geometric: {
+    patterns: ['wovenGrid', 'cubeGrid', 'kaleidoWave', 'crystal', 'stainedGlass', 'hyperVoronoi', 'lissajous', 'fractal'],
+    colors: ['monochrome', 'ice', 'rainbow', 'fire', 'matrix'],
+    visualModes: ['normal', 'pixelate', 'hashGrid', 'cartoon', 'thermal'],
+  },
+  organic: {
+    patterns: ['hyperTuring', 'hyperFlow', 'reactionDiff', 'spiralArms', 'inkDrop', 'aurora', 'morph', 'fractal'],
+    colors: ['fire', 'ice', 'rainbow', 'velocity', 'reactivePulse', 'vaporwave'],
+    visualModes: ['glow', 'normal', 'moire', 'vhs', 'thermal'],
+  },
+};

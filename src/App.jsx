@@ -12,29 +12,63 @@ import {
   PATTERN_TYPES_LIST as Mx,
   PATTERN_TYPE_OPTIONS_LIST as cd,
   GLOBAL_PARAM_KEYS as Va,
+  MOUSE_PARAM_KEYS as Wa,
+  MOUSE_RANDOM_PARAM_KEYS as Xa,
+  THREE_D_PARAM_KEYS as Qa,
   VISUAL_MODES as Dc,
   VISUAL_MODE_INDEX as hi,
   COLOR_MODES as Bi,
   AUDIO_COLOR_MODES_LIST as j0,
+  RANDOMIZER_THEMES,
 } from './constants/sliderConfig.js';
 import { APP_STYLES as To } from './constants/controlStyles.js';
-import { DEFAULT_LAYER_PARAMS as mt } from './constants/index.js';
+import { PARAM_CONFIG as patternParamConfig } from './constants/index.js';
 import { lerp as ud, randomInRange as Rr, isElectron as f3 } from './lib/utils.js';
+import { encodePreset, decodePreset, parseShareUrl } from './lib/presets.js';
+import { createRandomStartupState, createRandomMainCanvasTransition, randomizeGalleryWallStacks } from './lib/randomizer.js';
+import { GLOBAL_SPEED_PARAM_SET, LAYER_SPEED_PARAM_SET } from './lib/transitionSpeedParams.js';
+import { DEFAULT_GLOBALS, DEFAULT_LAYERS } from './constants/index.js';
 
 const l3 = 1e3;
 const c3 = 2500;
 const u3 = 2500;
 const vs = Mx;
 
+function buildDefaultParams() {
+    return {
+        ...DEFAULT_GLOBALS,
+        layer1: { ...DEFAULT_LAYERS.layer1 },
+        layer2: { ...DEFAULT_LAYERS.layer2 },
+        layer3: { ...DEFAULT_LAYERS.layer3 },
+        layer4: { ...DEFAULT_LAYERS.layer4 }
+    };
+}
+
+let startupSnapshot;
+function getStartupState() {
+    if (!startupSnapshot) {
+        if (typeof window !== "undefined" && parseShareUrl()) {
+            startupSnapshot = {
+                params: buildDefaultParams(),
+                visualMode: "normal",
+                globalColorMode: "rainbow",
+                forceGlobalColor: !1
+            };
+        } else {
+            startupSnapshot = createRandomStartupState({
+                theme: "chaotic",
+                randomizeGlobals: !0,
+                randomizeColorModes: !0,
+                randomizeVisualMode: !0
+            });
+        }
+    }
+    return startupSnapshot;
+}
+
 function App() {
     const [t, e] = React.useState("layer1"), [n, r] = React.useState(!0), i = React.useMemo(() => Mx.reduce((K, ze, be) => (K[ze] = be, K), {}), []), o = React.useMemo(() => ({
-        invisible: [],
-        wovenGrid: ["symmetry", "distortion", "layer2Freq", "weaveThickness"],
-        hyperTuring: ["symmetry", "distortion", "turingScale", "turingSpeed", "turingFeed", "turingKill", "turingDiffusionA", "turingDiffusionB"],
-        hyperVoronoi: ["symmetry", "distortion", "voronoiScale", "voronoiEdgeWidth"],
-        spiralArms: ["symmetry", "distortion", "spiralArms", "spiralTightness", "spiralNoiseScale", "spiralNoiseSpeed"],
-        flowComplexity: ["flowComplexity", "flowCurl"],
-        singleSpinningCube: ["symmetry", "distortion", "cubeRotationSpeed", "cubeSize", "layerSymmetryOffsetSpeed"],
+        ...patternParamConfig,
         _audioParams: ["audioSensitivity", "bassSensitivity", "midSensitivity", "highSensitivity"]
     }), []), s = React.useCallback(K => {
         const ze = o[K] || [],
@@ -47,7 +81,10 @@ function App() {
         layer4: null
     }), c = React.useRef();
     React.useRef(a);
-    const [f, d] = React.useState(!1), [h, p] = React.useState(!1), [g, y] = React.useState(null), [m, u] = React.useState(null), [_, v] = React.useState(null), [M, R] = React.useState(1), [A, w] = React.useState("normal"), [L, E] = React.useState("rainbow"), [S, F] = React.useState(!1), q = React.useRef(0), O = React.useRef(null), ee = React.useRef(f), Q = React.useRef(A), oe = React.useRef(L), ie = React.useRef(S), [I, j] = React.useState(null);
+    const [f, d] = React.useState(!1), [h, p] = React.useState(!1), [g, y] = React.useState(null), [m, u] = React.useState(null), [_, v] = React.useState(null), [M, R] = React.useState(1), [A, w] = React.useState(() => getStartupState().visualMode), [L, E] = React.useState(() => getStartupState().globalColorMode), [S, F] = React.useState(() => getStartupState().forceGlobalColor), q = React.useRef(0), O = React.useRef(null), ee = React.useRef(f), Q = React.useRef(A), oe = React.useRef(L), ie = React.useRef(S), [I, j] = React.useState(null), [activeTheme, setActiveTheme] = React.useState("chaotic"), [presetCode, setPresetCode] = React.useState(""), [threeDEnabled, setThreeDEnabled] = React.useState(!1), threeDEnabledRef = React.useRef(!1);
+    React.useEffect(() => {
+        threeDEnabledRef.current = threeDEnabled
+    }, [threeDEnabled]);
     React.useRef(I);
     const $ = React.useRef(M),
         [fe, Le] = React.useState(!0),
@@ -73,6 +110,7 @@ function App() {
         de = React.useRef(0);
     React.useRef(0);
     const he = React.useRef(null);
+    const mouseParamAnimRef = React.useRef(null);
     React.useRef(0);
     const Be = React.useRef(0),
         we = React.useRef(0),
@@ -91,49 +129,12 @@ function App() {
         qt = React.useCallback(K => {
             K != null && K.current && (wt.current = K.current);
         }, []);
-    const [Dt, Lt] = React.useState({
-            layer1: {
-                ...mt,
-                patternType: "wovenGrid",
-                blendTargetType: "wovenGrid",
-                colorMode: "rainbow"
-            },
-            layer2: {
-                ...mt,
-                patternType: "hyperTuring",
-                colorMode: "fire",
-                symmetry: 3,
-                audioSensitivity: 2.5
-            },
-            layer3: {
-                ...mt,
-                patternType: "hyperVoronoi",
-                colorMode: "ice",
-                symmetry: 5,
-                midSensitivity: 1.8
-            },
-            layer4: {
-                ...mt,
-                patternType: "invisible",
-                colorMode: "monochrome",
-                bassSensitivity: 1,
-                highSensitivity: 2
-            },
-            feedbackMix: 0,
-            globalTimeScale: 1,
-            globalDistortionScale: 0,
-            globalSymmetryOffsetSpeed: 0,
-            uvScale: .8,
-            globalAudioSensitivity: 5,
-            pixelationFactor: 100,
-            rainbowAnimationSpeed: .1,
-            asciiCharSize: 12
-        }),
+    const [Dt, Lt] = React.useState(() => getStartupState().params),
         Zt = React.useRef(null);
     React.useEffect(() => {
         Zt.current = Dt
     }, [Dt]);
-    const oi = React.useRef(Dt),
+    const oi = React.useRef(getStartupState().params),
         {
             audioData: Vr,
             loadAudio: si,
@@ -198,10 +199,17 @@ function App() {
                 });
                 return
             }
-            if (Va.includes(K)) {
+            if (Va.includes(K) || Wa.includes(K) || Qa.includes(K)) {
                 Lt(tt => ({
                     ...tt,
                     [K]: parseFloat(ze)
+                }));
+                return
+            }
+            if (K === "patternDisplacementEnabled") {
+                Lt(tt => ({
+                    ...tt,
+                    [K]: !!ze
                 }));
                 return
             }
@@ -300,159 +308,39 @@ function App() {
         }
     }, [a, M]);
     const k = React.useCallback((K = !1) => {
-        var da, ha, pa, ma, ga, va, _a;
+        if (U.current) return;
         const ze = Zt.current,
-            be = ee.current,
+            be = ee.current || K,
             $e = fe,
-            at = Ue;
-        Q.current;
-        const tt = A,
+            at = Ue,
+            tt = A,
             qe = oe.current,
-            nt = ie.current;
-        if (U.current) {
-            return
-        }
-        const dt = hi[tt] ?? 0,
-            Re = {
-                ...ze
-            },
-            Ge = 4 * Math.PI,
-            Ct = JSON.parse(JSON.stringify(oi.current)),
-            Ee = {
-                ...Ct
-            };
-        let bt = tt,
-            Ut = dt,
-            Wt = qe;
-        if (at) {
-            let lt = 0,
-                kt = tt;
-            for (; lt < 10 && kt === tt;) kt = Dc[Math.floor(Math.random() * Dc.length)], lt++;
-            kt !== tt ? (bt = kt, Ut = hi[bt] ?? 0) : null;
-        }
-        const Rt = be || K;
-        Rt ? (Va.forEach(lt => {
-            if (lt !== "blendSpeedFactor" && lt !== "pixelationFactor" && lt !== "asciiCharSize" && lt !== "rainbowAnimationSpeed" && St[lt] && Re.hasOwnProperty(lt)) {
-                let kt = Rr(St[lt]);
-                const gn = St[lt];
-                if (lt === "globalSymmetryOffsetSpeed") {
-                    const It = gn.max * .15,
-                        ai = gn.min * .15;
-                    kt = Math.max(ai, Math.min(It, kt))
-                }
-                const Jt = {
-                    globalTimeScale: .5,
-                    uvScale: .6,
-                    globalDistortionScale: .5
-                };
-                if (Jt.hasOwnProperty(lt)) {
-                    const wn = Jt[lt],
-                        It = (gn.max + gn.min) / 2,
-                        ai = (gn.max - gn.min) / 2,
-                        mo = It + ai * wn,
-                        Ot = It - ai * wn;
-                    kt = Math.max(Ot, Math.min(mo, kt))
-                }
-                Ee[lt] = kt
-            } else lt === "blendSpeedFactor" && Re.hasOwnProperty(lt) && (Ee[lt] = Re[lt])
-        }), $e ? (Wt = Bi[Math.floor(Math.random() * Bi.length)]) : null, Ee.globalColorMode = Wt, Ee.forceGlobalColor = nt, St.rainbowAnimationSpeed && Re.hasOwnProperty("rainbowAnimationSpeed") && (Ee.rainbowAnimationSpeed = Rr(St.rainbowAnimationSpeed))) : (Va.forEach(lt => {
-            Re.hasOwnProperty(lt) && (Ee[lt] = Re[lt])
-        }), Ee.globalColorMode = qe, Ee.forceGlobalColor = nt), Ee.visualModeFromIndex = dt, Ee.visualModeToIndex = Ut, Ee.visualModeBlend = 0, bt === "pixelate" ? (Ee.pixelationFactor = Rr(St.pixelationFactor), Ee.hasOwnProperty("asciiCharSize") || (Ee.asciiCharSize = ((da = St.asciiCharSize) == null ? void 0 : da.default) ?? 12)) : bt === "ascii" ? (Ee.asciiCharSize = Rr(St.asciiCharSize), Ee.hasOwnProperty("pixelationFactor") || (Ee.pixelationFactor = ((ha = St.pixelationFactor) == null ? void 0 : ha.default) ?? 100)) : (Ee.hasOwnProperty("pixelationFactor") || (Ee.pixelationFactor = ((pa = St.pixelationFactor) == null ? void 0 : pa.default) ?? 100), Ee.hasOwnProperty("asciiCharSize") || (Ee.asciiCharSize = ((ma = St.asciiCharSize) == null ? void 0 : ma.default) ?? 12));
-        for (let lt = 1; lt <= 4; lt++) {
-            const kt = `layer${lt}`,
-                gn = Ct[kt],
-                Jt = Re[kt];
-            if (!gn || !Jt) continue;
-            const wn = vs[Math.floor(Math.random() * vs.length)];
-            if (wn === "invisible") {
-                const It = {
-                    ...Jt
-                };
-                It.patternType = "invisible", It.blendTargetType = "invisible", It.blendAmount = 0, $e ? It.colorMode = Bi[Math.floor(Math.random() * Bi.length)] : It.colorMode = Jt.colorMode, Ee[kt] = It
-            } else {
-                const It = {
-                    ...gn
-                };
-                o._audioParams && o._audioParams.forEach(Ot => {
-                    if (St[Ot] && It.hasOwnProperty(Ot)) {
-                        let Hr = Rr(St[Ot]);
-                        Hr = Math.max(.8, Hr), It[Ot] = Hr
-                    }
-                }), It.patternType = wn;
-                const ai = cd[Math.floor(Math.random() * cd.length)];
-                It.blendTargetType = ai, It.blendAmount = 0, St.symmetry && It.hasOwnProperty("symmetry") && (It.symmetry = Math.round(Rr(St.symmetry))), St.distortion && It.hasOwnProperty("distortion") && (It.distortion = Rr(St.distortion));
-                const mo = s(wn);
-                mo.forEach(Ot => {
-                    if (Ot !== "symmetry" && Ot !== "distortion" && St[Ot] && It.hasOwnProperty(Ot)) {
-                        const Hr = Ot === "freq" || Ot === "layer2Freq" ? "layer2Freq" : Ot;
-                        if (St[Hr]) {
-                            const Gr = St[Hr];
-                            let Wr = Rr(Gr);
-                            const ya = {
-                                turingSpeed: .15,
-                                spiralNoiseSpeed: .15,
-                                flowSpeed: .15,
-                                cubeRotationSpeed: .15,
-                                smoothSpiralSpeed: .15
-                            };
-                            if (Ot === "layerSymmetryOffsetSpeed") Wr = Math.max(-Ge, Math.min(Ge, Wr));
-                            else if (ya.hasOwnProperty(Ot)) {
-                                const Li = ya[Ot],
-                                    go = Gr.max * Li,
-                                    vo = Gr.min * Li;
-                                Wr = Math.max(vo, Math.min(go, Wr))
-                            }
-                            const Sa = {
-                                distortion: .5,
-                                turingScale: .6,
-                                voronoiScale: .6,
-                                spiralTightness: .6,
-                                spiralNoiseScale: .5,
-                                smoothSpiralTightness: .6,
-                                lineAngle: .5,
-                                fractalAngle: .5
-                            };
-                            if (Sa.hasOwnProperty(Ot)) {
-                                const Li = Sa[Ot],
-                                    go = (Gr.max + Gr.min) / 2,
-                                    vo = (Gr.max - Gr.min) / 2,
-                                    jl = go + vo * Li,
-                                    Xl = go - vo * Li;
-                                Wr = Math.max(Xl, Math.min(jl, Wr))
-                            }
-                            It[Ot] = Wr
-                        } else console.warn(`Missing config for resolved key ${Hr} while randomizing ${Ot} for ${kt}`)
-                    } else Ot !== "symmetry" && Ot !== "distortion" && (It.hasOwnProperty(Ot) ? St[Ot] || console.warn(`Config for param ${Ot} (needed by ${wn}) not found in paramConfigs.`) : console.warn(`Param ${Ot} needed by ${wn} not found in layer ${kt} initial state structure.`))
-                }), $e ? It.colorMode = Bi[Math.floor(Math.random() * Bi.length)] : It.colorMode = ((_a = ze[kt]) == null ? void 0 : _a.colorMode) || gn.colorMode, Ee[kt] = It
-            }
-        }
-        if ([1, 2, 3, 4].every(lt => Ee[`layer${lt}`].patternType === "invisible")) {
-            const lt = vs.filter(Jt => Jt !== "invisible"),
-                kt = lt[Math.floor(Math.random() * lt.length)];
-            Ee.layer1.patternType = kt, s(kt).forEach(Jt => {
-                if (Jt !== "symmetry" && Jt !== "distortion" && St[Jt] && Ee.layer1.hasOwnProperty(Jt)) {
-                    const wn = Jt === "freq" || Jt === "layer2Freq" ? "layer2Freq" : Jt;
-                    St[wn] && (Ee.layer1[Jt] = Rr(St[wn]))
-                }
-            }), St.symmetry && Ee.layer1.hasOwnProperty("symmetry") && (Ee.layer1.symmetry = Math.round(Rr(St.symmetry))), St.distortion && Ee.layer1.hasOwnProperty("distortion") && (Ee.layer1.distortion = Rr(St.distortion))
-        }
-        O.current = {
-            ...Re
-        };
-        const bn = {
-            ...O.current
-        };
-        for (let lt = 1; lt <= 4; lt++) {
-            const kt = `layer${lt}`,
-                gn = bn[kt],
-                Jt = Ee[kt];
-            gn && Jt && gn.patternType === "invisible" && Jt.patternType !== "invisible" && (bn[kt] = {
-                ...gn,
-                layerSymmetryOffsetSpeed: 0
-            })
-        }
-        O.current = bn, y(Ee), q.current = performance.now(), p(!0)
-    }, [s, vs, cd, Dc, Bi, hi, y, p, A, f, fe, Ue]);
+            nt = ie.current,
+            Re = { ...ze },
+            audioActive = !!(se.current || ye.current),
+            transition = createRandomMainCanvasTransition({
+                currentParams: ze,
+                currentVisualMode: tt,
+                currentGlobalColorMode: qe,
+                forceGlobalColor: nt,
+                theme: activeTheme,
+                randomizeGlobals: be,
+                randomizeColorModes: $e,
+                randomizeVisualMode: at,
+                audioActive,
+            });
+        O.current = transition.fromParams;
+        y(transition.toParams);
+        randomizeGalleryWallStacks({
+            theme: activeTheme,
+            randomizeColorModes: $e,
+            randomizeVisualMode: at,
+            blendSpeedFactor: Re.blendSpeedFactor ?? M ?? 1,
+            audioActive,
+        });
+        q.current = performance.now();
+        p(!0);
+    }, [y, p, A, fe, Ue, activeTheme, M]);
     React.useEffect(() => {
         if (!h || !g || !O.current) {
             cancelAnimationFrame(c.current);
@@ -473,7 +361,7 @@ function App() {
                         ...Re
                     };
                     if (Va.forEach(Ct => {
-                            Ct !== "blendSpeedFactor" && Ct !== "pixelationFactor" && Ct !== "asciiCharSize" && St[Ct] && qe.hasOwnProperty(Ct) && g.hasOwnProperty(Ct) && (Ge[Ct] = ud(qe[Ct], g[Ct], dt))
+                            Ct !== "blendSpeedFactor" && Ct !== "pixelationFactor" && Ct !== "asciiCharSize" && St[Ct] && qe.hasOwnProperty(Ct) && g.hasOwnProperty(Ct) && (Ge[Ct] = GLOBAL_SPEED_PARAM_SET.has(Ct) ? qe[Ct] : ud(qe[Ct], g[Ct], dt))
                         }), qe.hasOwnProperty("visualModeBlend") && g.hasOwnProperty("visualModeBlend")) {
                         Ge.visualModeBlend = ud(0, 1, dt), Ge.visualModeFromIndex = g.visualModeFromIndex, Ge.visualModeToIndex = g.visualModeToIndex;
                         const Ct = g.visualModeToIndex;
@@ -488,7 +376,7 @@ function App() {
                                 ...Ge[Ee]
                             };
                         Wt.patternType = Ut.patternType, Wt.blendTargetType = bt.patternType, Wt.blendAmount = dt, Object.keys(bt).forEach(Rt => {
-                            St[Rt] && Rt !== "patternType" && Rt !== "blendTargetType" && Rt !== "blendAmount" && Rt !== "isVisible" && Rt !== "colorMode" && Ut.hasOwnProperty(Rt) && (Wt[Rt] = ud(Ut[Rt], bt[Rt], dt))
+                            St[Rt] && Rt !== "patternType" && Rt !== "blendTargetType" && Rt !== "blendAmount" && Rt !== "isVisible" && Rt !== "colorMode" && Ut.hasOwnProperty(Rt) && (Wt[Rt] = LAYER_SPEED_PARAM_SET.has(Rt) ? Ut[Rt] : ud(Ut[Rt], bt[Rt], dt))
                         }), Wt.colorMode = Ut.colorMode, Wt.blendTargetColorMode = bt.colorMode, Ge[Ee] = Wt
                     }
                     return Ge
@@ -616,8 +504,117 @@ function App() {
     }, [le]);
     const Ze = React.useCallback(K => {
         et(K)
-    }, []);
+    }, []),
+        mn = React.useCallback(K => {
+            if (!K) return;
+            K.visualMode != null && w(K.visualMode), K.globalColorMode != null && E(K.globalColorMode), K.forceGlobalColor != null && F(!!K.forceGlobalColor), Lt(ze => {
+                const be = {
+                    ...ze
+                };
+                return ["layer1", "layer2", "layer3", "layer4"].forEach($e => {
+                    K[$e] && (be[$e] = {
+                        ...ze[$e],
+                        ...K[$e]
+                    })
+                }), Va.forEach($e => {
+                    K[$e] !== void 0 && (be[$e] = K[$e])
+                }), K.globalSymmetryOffsetSpeed !== void 0 && (be.globalSymmetryOffsetSpeed = K.globalSymmetryOffsetSpeed), be
+            })
+        }, []),
+        $n = React.useCallback(K => {
+            K.preventDefault();
+            const ze = St.mouseRadius;
+            if (!ze) return;
+            const be = Zt.current.mouseRadius ?? ze.min,
+                $e = K.deltaY > 0 ? -ze.step * 2 : ze.step * 2,
+                at = Math.max(ze.min, Math.min(ze.max, be + $e));
+            Lt(tt => ({
+                ...tt,
+                mouseRadius: at
+            }))
+        }, []),
+        qn = React.useCallback(() => {
+            mouseParamAnimRef.current && cancelAnimationFrame(mouseParamAnimRef.current);
+            const K = Zt.current,
+                ze = {},
+                be = {};
+            Xa.forEach($e => {
+                const at = St[$e];
+                if (!at) return;
+                ze[$e] = K[$e] ?? 0, be[$e] = Rr(at)
+            });
+            const $e = performance.now(),
+                at = 900,
+                tt = qe => {
+                    const nt = Math.min(1, (qe - $e) / at),
+                        gt = nt * nt * (3 - 2 * nt);
+                    Lt(dt => {
+                        const Re = {
+                            ...dt
+                        };
+                        return Xa.forEach(Ge => {
+                            Ge in ze && Ge in be && (Re[Ge] = ud(ze[Ge], be[Ge], gt))
+                        }), Re
+                    }), nt < 1 ? mouseParamAnimRef.current = requestAnimationFrame(tt) : mouseParamAnimRef.current = null
+                };
+            mouseParamAnimRef.current = requestAnimationFrame(tt)
+        }, []),
+        En = React.useCallback(async () => {
+            const K = encodePreset({
+                ...Dt,
+                visualMode: A,
+                globalColorMode: L,
+                forceGlobalColor: S
+            });
+            if (!K) return;
+            setPresetCode(K);
+            try {
+                await navigator.clipboard.writeText(K)
+            } catch (ze) {
+                console.warn("Failed to copy preset to clipboard:", ze)
+            }
+        }, [Dt, A, L, S]),
+        Tn = React.useCallback(() => {
+            const K = decodePreset(presetCode);
+            K && mn(K)
+        }, [presetCode, mn]),
+        An = React.useCallback(() => {
+            const K = parseShareUrl();
+            if (!K) return;
+            const ze = decodePreset(K);
+            ze && (setPresetCode(K), mn(ze))
+        }, [mn]);
     React.useEffect(() => {
+        const K = parseShareUrl();
+        if (K) {
+            const ze = decodePreset(K);
+            ze && (setPresetCode(K), mn(ze))
+        }
+    }, [mn]), React.useEffect(() => () => {
+        mouseParamAnimRef.current && cancelAnimationFrame(mouseParamAnimRef.current)
+    }, []), React.useEffect(() => {
+        const K = be => {
+            if (be.target.tagName === "INPUT" || be.target.tagName === "SELECT" || be.target.tagName === "TEXTAREA") return;
+            switch (be.key.toLowerCase()) {
+                case "1":
+                case "2":
+                case "3":
+                case "4":
+                    N(`layer${be.key}`);
+                    break;
+                case "h":
+                    H();
+                    break;
+                case "f":
+                    document.documentElement.requestFullscreen?.();
+                    break;
+                case "m":
+                    setThreeDEnabled(tt => !tt);
+                    break
+            }
+        };
+        return window.addEventListener("keydown", K), () => window.removeEventListener("keydown", K)
+    }, [k, N, H]), React.useEffect(() => {
         if (X.length > 0 && !Me) {
             const K = X.find(be => be.id.startsWith("screen:")),
                 ze = K ? K.id : X[0].id;
@@ -730,7 +727,16 @@ function App() {
             isDrumsPresent: yt,
             onBlendMaterialReady: Mt,
             onShaderMaterialReady: qt,
-            drumOnsetDetected: ce
+            drumOnsetDetected: ce,
+            threeDEnabled: threeDEnabled,
+            onMouseWheel: $n,
+            onCanvasPointerDown: qn
+        }), jsx("audio", {
+            ref: Nt,
+            style: {
+                display: "none"
+            },
+            crossOrigin: "anonymous"
         }), jsx("button", {
             onClick: H,
             className: To.toggleButton,
@@ -748,6 +754,16 @@ function App() {
             activeLayer: t,
             onLayerSelect: N,
             onRandomize: k,
+            isRandomizing: h,
+            activeTheme: activeTheme,
+            setActiveTheme: setActiveTheme,
+            onCopyPreset: En,
+            onLoadPreset: Tn,
+            presetCode: presetCode,
+            setPresetCode: setPresetCode,
+            onLoadFromUrl: An,
+            threeDEnabled: threeDEnabled,
+            setThreeDEnabled: setThreeDEnabled,
             patternTypes: vs,
             onFileChange: V,
             onTogglePlay: rr,
@@ -780,6 +796,8 @@ function App() {
             desktopSources: X,
             selectedSourceId: Me,
             onSourceSelected: Ze,
+            onSourceSelect: Ze,
+            setSelectedSourceId: et,
             onStartCapture: Ne,
             onStopCapture: Ve,
             onGetSources: _e,
