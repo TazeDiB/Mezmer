@@ -11,7 +11,11 @@
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5180 && electron .\"",
     "build": "vite build && node -e \"const fs=require('fs'); const p=require('path'); fs.copyFileSync(p.join('public','preload.js'), p.join('dist','preload.js'));\"",
     "preview": "vite preview",
-    "start": "electron ."
+    "start": "electron .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "benchmark:stress": "node scripts/benchmark-stress.js",
+    "benchmark:stress:full": "node scripts/benchmark-stress.js --full"
   },
   "dependencies": {
     "electron-is-dev": "^3.0.1",
@@ -26,6 +30,7 @@
     "concurrently": "^8.2.2",
     "electron": "^29.4.6",
     "vite": "^5.0.0",
+    "vitest": "^3.0.5",
     "wait-on": "^7.2.0"
   }
 }

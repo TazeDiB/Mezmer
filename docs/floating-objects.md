@@ -123,4 +123,4 @@ Display textures get `RepeatWrapping` on S/T for seamless sampling on curved sur
 
 `textureRandomize.js` profiles include `shape` and `gallery` — randomize can retarget float stacks via `randomizeGalleryWallStacks()` in `randomizer.js`, which calls `markGalleryWarmup()`.
 
-Space bar randomize in App can run even when 3D is off; stacks update in memory and apply on next gallery entry/warmup.
+Randomize float stacks via Controls **Randomize All** or **Auto Randomize** (`onRandomize` → `randomizeGalleryWallStacks()`). **RMB** randomizes mouse FX only. **Space** moves up in 3D gallery mode only — it does not randomize. Randomize can run while 3D is off; stacks update in memory and apply on next gallery entry/warmup.

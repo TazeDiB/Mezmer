@@ -3,14 +3,7 @@
  * Flat material = textured display; displaced material = vertex displacement from luminance height map.
  */
 import * as THREE from 'three';
-import {
-  createGallerySeamBlitPass,
-  blitGalleryFaceSeam,
-  GALLERY_EDGE_BLEND,
-} from './gallerySeams.js';
 import { GALLERY_FACE_COUNT } from './galleryStack.js';
-
-export { GALLERY_EDGE_BLEND };
 
 export const DEFAULT_DISPLACEMENT_SEGMENTS = 64;
 export const DEFAULT_DISPLACEMENT_STRENGTH = 0.12;
@@ -222,14 +215,14 @@ export function createFlatDisplayMaterial({
   return new THREE.MeshBasicMaterial({ side, toneMapped });
 }
 
-/** Gallery wall flat material — MeshBasicMaterial (seams applied in 2D blit pass). */
+/** Gallery wall flat material — MeshBasicMaterial. */
 export function createGalleryWallFlatMaterial({ side = THREE.FrontSide } = {}) {
   const mat = createFlatDisplayMaterial({ side, toneMapped: false });
   mat.color.set(0xffffff);
   return mat;
 }
 
-/** Gallery wall displaced material (seams already in displayMap). */
+/** Gallery wall displaced material. */
 export function createGalleryWallDisplacedMaterial({
   side = THREE.FrontSide,
   strength = DEFAULT_DISPLACEMENT_STRENGTH,
@@ -252,8 +245,6 @@ export function createGalleryWallDisplacedMaterials() {
     createGalleryWallDisplacedMaterial({ side: THREE.FrontSide })
   );
 }
-
-export { createGallerySeamBlitPass, blitGalleryFaceSeam };
 
 function resolveFloatingShapeUniforms(displacementPreset, geometry) {
   const kind = FLOATING_SHAPE_KIND[displacementPreset] ?? FLOATING_SHAPE_KIND.sphere;

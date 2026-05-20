@@ -66,15 +66,6 @@ Flat and displaced floating materials share fragment shader `FLOATING_SHAPE_FRAG
 
 Output: grayscale luminance in RGB.
 
-## Seam blit (`gallerySeams.js` — unused on walls)
-
-| Uniform | Purpose |
-|---------|---------|
-| `u_self` | Current face color |
-| `u_galleryFaceTex0` … `u_galleryFaceTex5` | All six face textures |
-| `u_faceIndex` | Face being composited |
-| `u_galleryEdgeBlend` | Edge band width |
-
 ## App params (displacement)
 
 From `constants/index.js` / Controls:

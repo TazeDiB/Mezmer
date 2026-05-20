@@ -4,19 +4,34 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import Meyda from 'meyda';
 
 const BPM_SMOOTHING = 0.1;
 const BPM_RESET_MS = 3000;
 const BPM_HISTORY_LEN = 8;
 const BASS_THRESHOLD = 0.5;
-const DRUM_PEAK_THRESHOLD = 200;
 const DRUM_WINDOW_MS = 200;
 const DRUM_COUNT_FOR_PRESENT = 3;
-const MIN_BPM = 240;
-const MAX_BPM = 1200;
+const MIN_BEAT_INTERVAL_MS = 240;
+const MAX_BEAT_INTERVAL_MS = 1200;
 const BPM_DEBOUNCE_MS = 100;
 const BPM_CHANGE_THRESHOLD = 10;
 const DRUM_COOLDOWN_MS = 2000;
+const DRUM_ONSET_BASELINE_ALPHA = 0.05;
+const DRUM_ONSET_THRESHOLD_MULT = 1.6;
+
+const MEYDA_FEATURES = ['rms', 'energy', 'spectralCentroid'];
+
+/** Positive spectral flux from byte frequency bins (Meyda's spectralFlux is broken in strict ESM). */
+function computeSpectralFlux(current, previous) {
+  if (!previous || current.length !== previous.length) return 0;
+  let flux = 0;
+  for (let i = 0; i < current.length; i++) {
+    const diff = current[i] - previous[i];
+    if (diff > 0) flux += diff;
+  }
+  return flux / (255 * current.length);
+}
 
 export function useAudio(audioTextureRef, fftSize = 256, inputStream = null) {
   const halfFft = fftSize / 2;
@@ -41,6 +56,10 @@ export function useAudio(audioTextureRef, fftSize = 256, inputStream = null) {
   const elementConnectedRef = useRef(false);
   const streamConnectedRef = useRef(false);
   const dataArrayFreqRef = useRef(null);
+  const dataArrayTimeRef = useRef(null);
+  const prevFreqDataRef = useRef(null);
+  const meydaSignalRef = useRef(null);
+  const prevMeydaSignalRef = useRef(null);
   const animationFrameRef = useRef(null);
   const frameCountRef = useRef(0);
   const bpmHistoryRef = useRef([]);
@@ -50,6 +69,18 @@ export function useAudio(audioTextureRef, fftSize = 256, inputStream = null) {
   const bassSmoothRef = useRef(0);
   const drumTimesRef = useRef([]);
   const lastDrumOnsetRef = useRef(0);
+  const fluxBaselineRef = useRef(0);
+  const rmsBaselineRef = useRef(0);
+  const prevFluxRef = useRef(0);
+  const prevRmsRef = useRef(0);
+  const isBassPresentRef = useRef(false);
+  const isDrumsPresentRef = useRef(false);
+  const estimatedBpmRef = useRef(120);
+  const audioPayloadRef = useRef({
+    frequencyData: new Uint8Array(halfFft),
+    beatStrength: 0,
+    spectralCentroid: 0,
+  });
 
   const connectSource = useCallback(() => {
     if (!audioContextRef.current) {
@@ -68,7 +99,21 @@ export function useAudio(audioTextureRef, fftSize = 256, inputStream = null) {
       analyserRef.current.fftSize = fftSize;
       const binCount = analyserRef.current.frequencyBinCount;
       dataArrayFreqRef.current = new Uint8Array(binCount);
-      setAudioData({ frequencyData: new Uint8Array(binCount), beatStrength: 0, spectralCentroid: 0 });
+      dataArrayTimeRef.current = new Uint8Array(fftSize);
+      prevFreqDataRef.current = new Uint8Array(binCount);
+      audioPayloadRef.current.frequencyData = new Uint8Array(binCount);
+      meydaSignalRef.current = new Float32Array(fftSize);
+      prevMeydaSignalRef.current = new Float32Array(fftSize);
+      Meyda.bufferSize = fftSize;
+      Meyda.sampleRate = ctx.sampleRate;
+      setAudioData({
+        frequencyData: audioPayloadRef.current.frequencyData,
+        beatStrength: 0,
+        spectralCentroid: 0,
+      });
+    } else {
+      Meyda.bufferSize = fftSize;
+      Meyda.sampleRate = ctx.sampleRate;
     }
     const analyser = analyserRef.current;
     if (!gainRef.current) gainRef.current = ctx.createGain();
@@ -158,14 +203,15 @@ export function useAudio(audioTextureRef, fftSize = 256, inputStream = null) {
   }, [fftSize, inputStream]);
 
   const analyseLoop = useCallback(() => {
-    if (!analyserRef.current || !dataArrayFreqRef.current) {
+    if (!analyserRef.current || !dataArrayFreqRef.current || !dataArrayTimeRef.current || !meydaSignalRef.current || !prevFreqDataRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       return;
     }
     const analyser = analyserRef.current;
     const freqData = dataArrayFreqRef.current;
+    const timeData = dataArrayTimeRef.current;
+    const meydaSignal = meydaSignalRef.current;
     const binCount = analyser.frequencyBinCount;
-    const timeData = new Uint8Array(binCount);
     try {
       analyser.getByteFrequencyData(freqData);
       analyser.getByteTimeDomainData(timeData);
@@ -174,6 +220,21 @@ export function useAudio(audioTextureRef, fftSize = 256, inputStream = null) {
       cancelAnimationFrame(animationFrameRef.current);
       return;
     }
+    for (let i = 0; i < meydaSignal.length; i++) {
+      meydaSignal[i] = (timeData[i] - 128) / 128;
+    }
+    let features = null;
+    try {
+      features = Meyda.extract(MEYDA_FEATURES, meydaSignal, prevMeydaSignalRef.current);
+    } catch (err) {
+      console.warn('Meyda extract failed:', err);
+    }
+    prevMeydaSignalRef.current.set(meydaSignal);
+
+    const flux = computeSpectralFlux(freqData, prevFreqDataRef.current);
+    prevFreqDataRef.current.set(freqData);
+
+    const rms = features?.rms ?? 0;
     const now = performance.now();
     let bassOn = false;
     let drumOn = false;
@@ -186,51 +247,82 @@ export function useAudio(audioTextureRef, fftSize = 256, inputStream = null) {
         lastBassOnsetRef.current = now;
       }
     }
-    const drumWindowStart = now - DRUM_WINDOW_MS;
-    for (let i = 0; i < binCount; i++) {
-      if (timeData[i] > DRUM_PEAK_THRESHOLD && now - lastBeatTimeRef.current > BPM_DEBOUNCE_MS / 2) {
-        bpmHistoryRef.current.push(now);
-        lastBeatTimeRef.current = now;
-        break;
+
+    fluxBaselineRef.current += DRUM_ONSET_BASELINE_ALPHA * (flux - fluxBaselineRef.current);
+    rmsBaselineRef.current += DRUM_ONSET_BASELINE_ALPHA * (rms - rmsBaselineRef.current);
+    const fluxThreshold = Math.max(fluxBaselineRef.current * DRUM_ONSET_THRESHOLD_MULT, 1e-6);
+    const rmsThreshold = Math.max(rmsBaselineRef.current * DRUM_ONSET_THRESHOLD_MULT, 1e-6);
+    const fluxPeak = flux > prevFluxRef.current && flux >= fluxThreshold;
+    const rmsPeak = rms > prevRmsRef.current && rms >= rmsThreshold;
+    const drumOnset = fluxPeak || rmsPeak;
+    prevFluxRef.current = flux;
+    prevRmsRef.current = rms;
+
+    if (drumOnset && now - lastBeatTimeRef.current > BPM_DEBOUNCE_MS / 2) {
+      drumTimesRef.current.push(now);
+      bpmHistoryRef.current.push(now);
+      if (bpmHistoryRef.current.length > BPM_HISTORY_LEN) {
+        bpmHistoryRef.current = bpmHistoryRef.current.slice(-BPM_HISTORY_LEN);
       }
+      lastBeatTimeRef.current = now;
     }
+
+    const drumWindowStart = now - DRUM_WINDOW_MS;
     drumTimesRef.current = drumTimesRef.current.filter((t) => t >= drumWindowStart);
-    if (drumTimesRef.current.length >= 3) {
+    if (drumTimesRef.current.length >= DRUM_COUNT_FOR_PRESENT) {
       drumOn = true;
       lastDrumOnsetRef.current = now;
     }
+
     if (bassOn) {
       bassSmoothRef.current = Math.min(bassSmoothRef.current + 1, 4);
-      if (bassSmoothRef.current > 3 && !isBassPresent) setIsBassPresent(true);
+      if (bassSmoothRef.current > 3 && !isBassPresentRef.current) {
+        isBassPresentRef.current = true;
+        setIsBassPresent(true);
+      }
     } else {
       bassSmoothRef.current = Math.max(bassSmoothRef.current - 1, 0);
-      if (bassSmoothRef.current === 0 && isBassPresent) setIsBassPresent(false);
+      if (bassSmoothRef.current === 0 && isBassPresentRef.current) {
+        isBassPresentRef.current = false;
+        setIsBassPresent(false);
+      }
     }
     if (drumOn) {
-      if (!isDrumsPresent) setIsDrumsPresent(true);
-    } else {
-      if (now - lastDrumOnsetRef.current > DRUM_COOLDOWN_MS) {
-        if (isDrumsPresent) setIsDrumsPresent(false);
+      if (!isDrumsPresentRef.current) {
+        isDrumsPresentRef.current = true;
+        setIsDrumsPresent(true);
+      }
+    } else if (now - lastDrumOnsetRef.current > DRUM_COOLDOWN_MS) {
+      if (isDrumsPresentRef.current) {
+        isDrumsPresentRef.current = false;
+        setIsDrumsPresent(false);
         bassSmoothRef.current = 0;
       }
     }
+
     if (frameCountRef.current % 30 === 0 && bpmHistoryRef.current.length >= 2) {
       const intervals = [];
       for (let i = 1; i < bpmHistoryRef.current.length; i++) {
         const d = bpmHistoryRef.current[i] - bpmHistoryRef.current[i - 1];
-        if (d >= 240 && d <= 1200) intervals.push(d);
+        if (d >= MIN_BEAT_INTERVAL_MS && d <= MAX_BEAT_INTERVAL_MS) intervals.push(d);
       }
       if (intervals.length > 0) {
         const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
         const bpm = 60000 / avgMs;
-        setEstimatedBpm((prev) => prev * (1 - BPM_SMOOTHING) + bpm * BPM_SMOOTHING);
+        setEstimatedBpm((prev) => {
+          const next = prev * (1 - BPM_SMOOTHING) + bpm * BPM_SMOOTHING;
+          estimatedBpmRef.current = next;
+          return next;
+        });
         lastBpmUpdateRef.current = now;
       }
-      if (now - lastBpmUpdateRef.current > BPM_RESET_MS && estimatedBpm !== 120) {
+      if (now - lastBpmUpdateRef.current > BPM_RESET_MS && estimatedBpmRef.current !== 120) {
+        estimatedBpmRef.current = 120;
         setEstimatedBpm(120);
         bpmHistoryRef.current = [];
       }
     }
+
     if (audioTextureRef?.current?.isDataTexture && freqData) {
       const tex = audioTextureRef.current;
       if (tex.image?.data?.length === freqData.length) {
@@ -238,24 +330,41 @@ export function useAudio(audioTextureRef, fftSize = 256, inputStream = null) {
         tex.needsUpdate = true;
       }
     }
+    if (audioPayloadRef.current.frequencyData.length === freqData.length) {
+      audioPayloadRef.current.frequencyData.set(freqData);
+    }
+
     let beatStrength = 0;
     let spectralCentroid = 0;
-    let weightedSum = 0;
-    let totalEnergy = 0;
-    for (let i = 0; i < binCount; i++) {
-      const val = freqData[i] / 255;
-      weightedSum += i * val;
-      totalEnergy += val;
+    const sampleRate = audioContextRef.current?.sampleRate ?? Meyda.sampleRate ?? 44100;
+    const nyquist = sampleRate / 2;
+    if (features?.spectralCentroid != null && Number.isFinite(features.spectralCentroid)) {
+      spectralCentroid = nyquist > 0 ? Math.min(1, features.spectralCentroid / nyquist) : 0;
+    } else {
+      let weightedSum = 0;
+      let totalEnergy = 0;
+      for (let i = 0; i < binCount; i++) {
+        const val = freqData[i] / 255;
+        weightedSum += i * val;
+        totalEnergy += val;
+      }
+      spectralCentroid = totalEnergy > 0 ? (weightedSum / totalEnergy) / binCount : 0;
     }
-    spectralCentroid = totalEnergy > 0 ? (weightedSum / totalEnergy) / binCount : 0;
+
     const beatBins = Math.min(8, binCount);
     let bassEnergy = 0;
     for (let i = 0; i < beatBins; i++) bassEnergy += freqData[i];
     beatStrength = Math.min(1, bassEnergy / (beatBins * 255));
+    if (features?.rms != null) {
+      beatStrength = Math.max(beatStrength, Math.min(1, features.rms * 2));
+    }
+
     frameCountRef.current += 1;
-    if (frameCountRef.current % 3 === 0) {
+    audioPayloadRef.current.beatStrength = beatStrength;
+    audioPayloadRef.current.spectralCentroid = spectralCentroid;
+    if (frameCountRef.current % 8 === 0) {
       setAudioData({
-        frequencyData: new Uint8Array(freqData),
+        frequencyData: audioPayloadRef.current.frequencyData,
         beatStrength,
         spectralCentroid,
       });
@@ -263,7 +372,7 @@ export function useAudio(audioTextureRef, fftSize = 256, inputStream = null) {
     if (audioContextRef.current && activeSourceRef.current !== 'none') {
       animationFrameRef.current = requestAnimationFrame(analyseLoop);
     }
-  }, [audioTextureRef, isBassPresent, isDrumsPresent, estimatedBpm]);
+  }, [audioTextureRef]);
 
   useEffect(() => {
     const ctx = audioContextRef.current;

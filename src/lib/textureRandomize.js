@@ -436,6 +436,7 @@ export function buildRandomMainCanvasParams(options = {}) {
         key !== 'pixelationFactor' &&
         key !== 'asciiCharSize' &&
         key !== 'rainbowAnimationSpeed' &&
+        key !== 'stressTestCount' &&
         SLIDER_CONFIG[key] &&
         params[key] !== undefined
       ) {
@@ -500,6 +501,7 @@ export function createRandomMainCanvasTransition(options = {}) {
         key !== 'pixelationFactor' &&
         key !== 'asciiCharSize' &&
         key !== 'rainbowAnimationSpeed' &&
+        key !== 'stressTestCount' &&
         SLIDER_CONFIG[key] &&
         fromParams.hasOwnProperty(key)
       ) {

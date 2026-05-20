@@ -7,7 +7,8 @@
 3. Reproduce open issues below before changing code
 4. After shader edits in `galleryDisplacement.js`: toggle 3D off/on
 5. Run `npm run build` before finishing
-6. Do **not** commit unless the user asks
+6. Run `npm run benchmark:stress` after stress-mode or RT sizing changes
+7. Do **not** commit unless the user asks
 
 ---
 
@@ -71,15 +72,14 @@ Requires coordinated refactor, not a single-file change.
 
 ---
 
-## How to wire gallery seams
+## Stress test benchmarking
 
-See [gallery-seams.md](./gallery-seams.md). Minimum viable:
+| Script | Output |
+|--------|--------|
+| `npm run benchmark:stress` | Vitest + GPU/CPU metrics → `benchmarks/stress-latest.json` |
+| `npm run benchmark:stress:full` | Includes `castle10000` row |
 
-1. Call `blitGalleryFaceSeam` after face RT batch
-2. Bind `displayMap` instead of `latestTexture`
-3. Test corners with displacement on
-
----
+See [stress-test-system.md](./stress-test-system.md).
 
 ## How to increase pattern refresh rate
 
@@ -114,19 +114,15 @@ Trade GPU time for less stale surfaces.
 
 **Suggested fixes:** custom geometry + unified UV chart; or radial base displacement; see [displacement-system.md](./displacement-system.md).
 
-### 2. Gallery seams not wired
-
-Visible edge discontinuities between walls. Infrastructure exists, not connected. See [gallery-seams.md](./gallery-seams.md).
-
-### 3. Incremental rendering staleness
+### 2. Incremental rendering staleness
 
 Only 2 walls + 1 float update per frame. Non-updated surfaces lag ~1–3 frames. Warmup/transition renders all.
 
-### 4. Box flat vs displaced UV mismatch
+### 3. Box flat vs displaced UV mismatch
 
 Flat uses `MeshBasicMaterial` box UV; displaced uses shader + edge fade. Pattern can look slightly different between modes.
 
-### 5. Brush paints at screen center only
+### 4. Brush paints at screen center only
 
 Pointer-lock gallery brush raycasts from `(0,0)` NDC — always view center.
 
@@ -134,14 +130,12 @@ Pointer-lock gallery brush raycasts from `(0,0)` NDC — always view center.
 
 | Item | Location |
 |------|----------|
-| `Scene3DOverlay.jsx` | Unused, wrong ref naming |
 | Sphere mouse 3D path | `useWebGL.js` — inactive with gallery-only mode |
 | `galleryAtlasToFace` in main.frag | Unused atlas path, wrong convention |
-| `displayMap` / seam blit | Allocated but unused |
 
-### 7. Randomize while 3D off
+### 6. Randomize while 3D off
 
-Space randomize updates gallery stacks in memory; user may not see changes until entering 3D or warmup.
+**Randomize All** / **Auto Randomize** (`onRandomize` → `randomizeGalleryWallStacks()`) can update gallery stacks while 3D is off; the user may not see changes until entering 3D or warmup. **Space** only moves the camera up in 3D mode — it does not randomize.
 
 ---
 
@@ -194,7 +188,7 @@ No automated tests for 3D gallery — manual visual verification required.
 | Displacement / shape UV | `galleryDisplacement.js` |
 | Wall/float themes | `galleryStack.js`, `galleryFloatingObjects.js` |
 | Randomize | `randomizer.js`, `textureRandomize.js` |
-| Seams | `gallerySeams.js`, then wire in `useWebGL.js` |
+| Edge neighbor motion | `galleryEdgeNeighbors.js`, `useWebGL.js`, `main.frag` |
 | Room size / hit test | `galleryMapping.js` |
 
 ---

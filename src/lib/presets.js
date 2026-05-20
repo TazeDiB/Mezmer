@@ -2,6 +2,17 @@
  * Preset seed encoding/decoding and share-URL helpers.
  */
 import { GLOBAL_PARAM_KEYS, MOUSE_PARAM_KEYS, THREE_D_PARAM_KEYS } from '../constants/sliderConfig.js';
+import {
+  GALLERY_FACE_COUNT,
+  startGalleryWallTransition,
+  markGalleryWarmup,
+} from './galleryStack.js';
+import {
+  FLOATING_OBJECT_COUNT,
+  startFloatingObjectTransition,
+} from './galleryFloatingObjects.js';
+
+export const PRESET_VERSION = 2;
 
 const LAYER_KEYS = ['layer1', 'layer2', 'layer3', 'layer4'];
 
@@ -37,8 +48,59 @@ function pickGlobals(state) {
   return globals;
 }
 
+function isValidGalleryStackEntry(stack) {
+  if (!stack || typeof stack !== 'object') return false;
+  if (!Array.isArray(stack.layers) || stack.layers.length !== 4) return false;
+  for (const layer of stack.layers) {
+    if (!layer || typeof layer !== 'object') return false;
+    if (typeof layer.patternType !== 'string' || typeof layer.colorMode !== 'string') return false;
+  }
+  return true;
+}
+
 /**
- * @param {Record<string, unknown>} state - layer1–4, globals, visualMode, globalColorMode, forceGlobalColor
+ * Validate v2 gallery stack arrays (6 wall + 3 floating stacks, 4 layers each).
+ * @param {unknown} galleryWallStacks
+ * @param {unknown} floatingObjectStacks
+ * @returns {boolean}
+ */
+export function validateGalleryStacks(galleryWallStacks, floatingObjectStacks) {
+  if (!Array.isArray(galleryWallStacks) || galleryWallStacks.length !== GALLERY_FACE_COUNT) {
+    return false;
+  }
+  if (!Array.isArray(floatingObjectStacks) || floatingObjectStacks.length !== FLOATING_OBJECT_COUNT) {
+    return false;
+  }
+  return (
+    galleryWallStacks.every(isValidGalleryStackEntry) &&
+    floatingObjectStacks.every(isValidGalleryStackEntry)
+  );
+}
+
+/**
+ * Crossfade gallery stacks from preset data (walls and/or floats) and request warmup.
+ * @param {Record<string, unknown> | null | undefined} state
+ * @param {number} [blendSpeedFactor=1]
+ * @returns {boolean} true if any stack transition was started
+ */
+export function applyGalleryStacksFromPreset(state, blendSpeedFactor = 1) {
+  if (!state) return false;
+
+  let applied = false;
+  if (state.galleryWallStacks) {
+    startGalleryWallTransition(state.galleryWallStacks, blendSpeedFactor);
+    applied = true;
+  }
+  if (state.floatingObjectStacks) {
+    startFloatingObjectTransition(state.floatingObjectStacks, blendSpeedFactor);
+    applied = true;
+  }
+  if (applied) markGalleryWarmup();
+  return applied;
+}
+
+/**
+ * @param {Record<string, unknown>} state - layer1–4, globals, visualMode, globalColorMode, forceGlobalColor, optional gallery stacks
  * @returns {string} URL-safe base64 preset code, or empty string if invalid
  */
 export function encodePreset(state) {
@@ -55,6 +117,10 @@ export function encodePreset(state) {
   if (state.visualMode != null) payload.visualMode = String(state.visualMode);
   if (state.globalColorMode != null) payload.globalColorMode = state.globalColorMode;
   if (state.forceGlobalColor != null) payload.forceGlobalColor = Boolean(state.forceGlobalColor);
+
+  payload.version = PRESET_VERSION;
+  if (state.galleryWallStacks != null) payload.galleryWallStacks = state.galleryWallStacks;
+  if (state.floatingObjectStacks != null) payload.floatingObjectStacks = state.floatingObjectStacks;
 
   return toUrlSafeBase64(JSON.stringify(payload));
 }
@@ -75,6 +141,20 @@ export function decodePreset(code) {
     for (const key of LAYER_KEYS) {
       if (!state[key] || typeof state[key] !== 'object') return null;
     }
+
+    const version = state.version;
+    if (version === PRESET_VERSION) {
+      if (!validateGalleryStacks(state.galleryWallStacks, state.floatingObjectStacks)) {
+        return null;
+      }
+    } else if (version != null && version !== 1) {
+      return null;
+    } else {
+      delete state.galleryWallStacks;
+      delete state.floatingObjectStacks;
+    }
+
+    delete state.version;
 
     for (const key of RUNTIME_KEYS) {
       delete state[key];

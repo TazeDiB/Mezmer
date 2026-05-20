@@ -120,7 +120,9 @@ Triggered by randomize, first init, transitions.
 | `shape` | Randomize floating object stacks |
 | `gallery` | Full gallery randomize (walls + floats) |
 
-App **Space** key can call randomize even when 3D is off — stacks update in memory; visual change applies on next gallery session or warmup.
+**How to randomize:** use the Controls **Randomize All** button (`onRandomize` in `App.jsx`, which calls `randomizeGalleryWallStacks()`), or enable **Auto Randomize** in the panel. **RMB** randomizes mouse FX only. **Space** is not randomize — in 3D gallery mode it moves the camera up (with **E**); see [3d-mode-lifecycle.md](./3d-mode-lifecycle.md).
+
+Gallery stack randomize can run while 3D is off; stacks update in memory and the visual change applies on the next gallery session or warmup.
 
 ## Stack mutation API
 
@@ -135,7 +137,18 @@ App **Space** key can call randomize even when 3D is off — stacks update in me
 
 ## Presets integration
 
-Gallery-specific params may be stored in preset/share-code system via `constants/index.js` defaults. Check `presets.js` for serialization of `patternDisplacementEnabled` and related globals — wall/float stacks may need explicit preset fields if save/load of gallery themes is required.
+**Module:** `src/lib/presets.js` — `PRESET_VERSION = 2`
+
+| Version | Payload |
+|---------|---------|
+| v1 (legacy) | No `version` field; layers + globals only |
+| v2 | `version: 2`, `galleryWallStacks` (6), `floatingObjectStacks` (3) |
+
+- **Encode:** `encodePreset({ ...params, galleryWallStacks, floatingObjectStacks })` — App passes stacks from `getGalleryWallStacks()` / `getFloatingObjectStacks()`.
+- **Decode:** v1 codes load canvas params only; v2 validates stack shape via `validateGalleryStacks()` and rejects invalid payloads.
+- **Apply:** `applyGalleryStacksFromPreset(decoded)` calls `setGalleryWallStacks` / `setFloatingObjectStacks` and `markGalleryWarmup()` when stacks are present.
+
+Share URLs (`#seed=…`) round-trip full gallery appearance on v2 presets.
 
 ## Tuning constants
 

@@ -72,8 +72,7 @@ flowchart TB
 |------|------|
 | `src/App.jsx` | Root state: `threeDEnabled`, displacement params, keyboard **M** toggle |
 | `src/components/WebGLCanvas.jsx` | Creates `threeDStateRef`, runs both hooks, pointer-lock brush |
-| `src/components/Controls.jsx` | UI: 3D toggle, pattern heightmap checkbox, displacement slider |
-| `src/components/Scene3DOverlay.jsx` | **Legacy/unused** — not mounted from App |
+| `src/components/Controls.jsx` | UI: 3D toggle, pattern heightmap checkbox, displacement slider, randomize |
 | `src/hooks/useThreeDMode.js` | Gallery scene lifecycle, FPS camera, floating defs |
 | `src/hooks/useWebGL.js` | Main animate loop, gallery RT pipeline, texture bind |
 | `src/lib/galleryMapping.js` | `GALLERY_ROOM` dimensions, `worldHitToGallerySurface()` |
@@ -81,7 +80,7 @@ flowchart TB
 | `src/lib/galleryStack.js` | Six independent wall stacks, face RT factory, transitions |
 | `src/lib/galleryFloatingObjects.js` | Three object stacks, `renderFloatingObjectTexture()` |
 | `src/lib/galleryDisplacement.js` | Materials, shape GLSL, height blit, bind helpers |
-| `src/lib/gallerySeams.js` | Edge neighbor tables, seam blit (**not called in hot path**) |
+| `src/lib/galleryEdgeNeighbors.js` | Edge neighbor integrated time / distortion helpers for wall RT passes |
 | `src/lib/textureRandomize.js` | Randomize profiles: `wall`, `shape`, `gallery` |
 | `src/lib/randomizer.js` | `randomizeGalleryWallStacks()` public API |
 | `src/shaders/main.frag` | Pattern generation; gallery face uniforms |
@@ -89,6 +88,11 @@ flowchart TB
 | `src/shaders/main.vert` | Fullscreen quad for RT passes |
 | `src/constants/index.js` | `patternDisplacementEnabled`, `patternDisplacement` defaults |
 | `src/constants/sliderConfig.js` | `THREE_D_PARAM_KEYS` |
+| `src/lib/stressTest.js` | Stress modes, RT factory, per-object pattern/color |
+| `src/lib/stressTestParticles.js` | Particle sprites, layout, motion |
+| `src/lib/stressTestCastle.js` | Procedural castle generator |
+| `src/lib/stressBenchmark.js` | Offline GPU estimates + CPU timings |
+| `src/hooks/useStressTestMode.js` | Stress Three.js scene lifecycle |
 
 ## Gallery readiness gate
 
@@ -106,7 +110,7 @@ galleryReady =
   galleryFloatingRT.current;
 ```
 
-When `galleryReady` is false, the hook uses the standard 2D fullscreen feedback + blend path.
+When `galleryReady` is false, the hook uses the standard 2D fullscreen feedback + blend path **unless stress test is active** (`stressReady` in `useWebGL.js`).
 
 ## Face index convention
 
@@ -133,18 +137,48 @@ To spread GPU cost, not every surface is updated every frame:
 
 Non-updated surfaces keep their last `latestTexture` until the round-robin cursor reaches them again (~3 frames for walls).
 
-## 2D vs 3D pattern stacks
+## 2D vs 3D vs stress pattern stacks
 
-The main canvas and gallery walls use **separate** layer stack state:
-
-- Main 2D: App `params` layers → fullscreen quad
-- Gallery walls: `DEFAULT_GALLERY_WALL_STACKS` in `galleryStack.js` (six independent stacks)
-- Floating objects: `DEFAULT_FLOATING_OBJECT_STACKS` in `galleryFloatingObjects.js`
-
-Global layer speed/distortion params from App still drive per-layer time integration on gallery surfaces, but pattern/color **choices** per wall/object come from gallery stack modules.
+The main canvas, gallery walls, floating objects, and stress tiles each use **separate** layer stack state (see [stress-test-system.md](./stress-test-system.md) for stress modes). Gallery incremental refresh does **not** apply during stress runs.
 
 ## Legacy code paths
 
 `useWebGL.js` still contains a **sphere mouse-mapping** branch (`td.mesh`, `mouseOnSphere`) for an older non-gallery 3D mode. Current `useThreeDMode` always sets `isGallery: true`, so that path is inactive unless another hook fills `threeDStateRef` differently.
 
 `main.frag` may contain unused atlas helpers (`galleryAtlasToFace`) with a different face convention — treat as dead code until removed.
+
+## Stress test mode (summary)
+
+When `stressTestMode !== 'off'`, gallery 3D is disabled and `useWebGL` runs **`runStressTestFrameLoop`** instead of the gallery or 2D paths. Every active object receives a full pattern RT update each frame (no round-robin).
+
+| Branch | Scene hook | Display module |
+|--------|------------|----------------|
+| `plane2d` | `useStressTestMode` | `stressTestScene.js` — ortho tile grid |
+| `cubes3d` | + fly controls | `stressTestScene.js` — textured box grid |
+| `particles3d` | + fly controls | `stressTestParticles.js` — sprite billboards + motion |
+| `castle*` | + fly controls | `stressTestCastle.js` → `stressTestScene.js` |
+
+Shared infrastructure: `stressTest.js` (RT pool, per-tile modes), `stressTestFrameLoop.js` (N× main.frag + blend), `flyControls.js` (3D navigation).
+
+Full detail, performance notes, and benchmark commands: **[stress-test-system.md](./stress-test-system.md)**.
+
+```mermaid
+flowchart LR
+  subgraph stress [Stress active]
+    N[N objects]
+    Loop[stressTestFrameLoop]
+    Bind[bind textures]
+    Three[Three.js scene render]
+  end
+  N --> Loop --> Bind --> Three
+```
+
+## Render path selection
+
+```
+stressTestMode !== 'off'  →  stressTestFrameLoop + stress scene
+else threeDEnabled        →  galleryFrameLoop + gallery scene
+else                      →  canvas2D feedback + display quad
+```
+
+See `useWebGL.js` `stressReady` / `galleryReady` gates.

@@ -5,6 +5,8 @@ import React, { useRef, useEffect } from 'react';
 import { useWebGL } from '../hooks/useWebGL.js';
 import { CANVAS_STYLES } from '../constants/controlStyles.js';
 import { useThreeDMode } from '../hooks/useThreeDMode.js';
+import { useStressTestMode, isStressTestFlyMode } from '../hooks/useStressTestMode.js';
+import FpsOverlay from './FpsOverlay.jsx';
 
 export default function WebGLCanvas({
   params,
@@ -28,6 +30,11 @@ export default function WebGLCanvas({
   drumOnsetDetected,
   asciiCharSize,
   threeDEnabled = false,
+  stressTestMode = 'off',
+  showFpsCounter = false,
+  vsyncEnabled = true,
+  fps = 0,
+  onFpsUpdate,
   onCanvasReady,
   onMouseWheel,
   onCanvasPointerDown,
@@ -35,10 +42,22 @@ export default function WebGLCanvas({
 }) {
   const containerRef = useRef(null);
   const threeDStateRef = useRef({ enabled: false });
+  const stressStateRef = useRef({ enabled: false, mode: 'off' });
   const threeDEnabledRef = useRef(threeDEnabled);
+  const stressTestModeRef = useRef(stressTestMode);
+  const showFpsCounterRef = useRef(showFpsCounter);
+  const vsyncEnabledRef = useRef(vsyncEnabled);
+  const onFpsUpdateRef = useRef(onFpsUpdate);
   threeDEnabledRef.current = threeDEnabled;
+  stressTestModeRef.current = stressTestMode;
+  showFpsCounterRef.current = showFpsCounter;
+  vsyncEnabledRef.current = vsyncEnabled;
+  onFpsUpdateRef.current = onFpsUpdate;
 
-  useThreeDMode(containerRef, threeDEnabled, threeDStateRef, audioData);
+  const galleryThreeDEnabled = threeDEnabled && stressTestMode === 'off';
+  const stressFlyEnabled = isStressTestFlyMode(stressTestMode);
+  useThreeDMode(containerRef, galleryThreeDEnabled, threeDStateRef, audioData);
+  useStressTestMode(containerRef, stressTestMode, params.stressTestCount ?? 4, stressStateRef);
 
   const { uniforms, blendMaterialRef, shaderMaterialRef, canvasRef } = useWebGL(
     containerRef,
@@ -55,13 +74,19 @@ export default function WebGLCanvas({
     estimatedBpm,
     isBassPresent,
     isDrumsPresent,
-    animationProgress,
+    drumOnsetDetected,
     undefined,
     threeDStateRef,
-    threeDEnabledRef
+    threeDEnabledRef,
+    stressTestModeRef,
+    stressStateRef,
+    showFpsCounterRef,
+    onFpsUpdateRef,
+    vsyncEnabledRef
   );
 
-  useEffect(() => {}, [params, uniforms]);
+  const usesPointerLock = galleryThreeDEnabled || stressFlyEnabled;
+
   useEffect(() => {
     if (onBlendMaterialReady && blendMaterialRef) onBlendMaterialReady(blendMaterialRef);
   }, [onBlendMaterialReady, blendMaterialRef]);
@@ -90,9 +115,8 @@ export default function WebGLCanvas({
   return React.createElement(
     'div',
     {
-      ref: containerRef,
       className: CANVAS_STYLES.canvasContainer,
-      style: { position: 'relative', cursor: 'crosshair' },
+      style: { position: 'relative', width: '100%', height: '100%', cursor: 'crosshair' },
       ...rest,
       onWheel: (event) => {
         rest.onWheel?.(event);
@@ -108,12 +132,26 @@ export default function WebGLCanvas({
         rest.onPointerDown?.(event);
         const canvas = canvasRef?.current;
         const td = threeDStateRef.current;
-        if (threeDEnabled) {
+
+        if (stressFlyEnabled && !galleryThreeDEnabled) {
+          if (event.button === 0 && canvas) {
+            event.preventDefault();
+            if (document.pointerLockElement !== canvas) {
+              canvas.requestPointerLock({ unadjustedMovement: true }).catch(() => {});
+            }
+          } else if (event.button === 2 && onCanvasPointerDown) {
+            event.preventDefault();
+            onCanvasPointerDown(event);
+          }
+          return;
+        }
+
+        if (usesPointerLock) {
           event.preventDefault();
           if (event.button === 0) {
-          if (canvas && document.pointerLockElement !== canvas) {
-            canvas.requestPointerLock({ unadjustedMovement: true }).catch(() => {});
-          }
+            if (canvas && document.pointerLockElement !== canvas) {
+              canvas.requestPointerLock({ unadjustedMovement: true }).catch(() => {});
+            }
             if (td) {
               td.brushActive = true;
               td.brushStartTime = performance.now();
@@ -149,6 +187,11 @@ export default function WebGLCanvas({
           threeDStateRef.current.brushActive = false;
         }
       },
-    }
+    },
+    React.createElement('div', {
+      ref: containerRef,
+      style: { position: 'absolute', inset: 0, zIndex: 0 },
+    }),
+    React.createElement(FpsOverlay, { fps, visible: showFpsCounter })
   );
 }

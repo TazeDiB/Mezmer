@@ -1,25 +1,22 @@
-# Gallery Seams
+# Gallery Edge Neighbor Motion Sync
 
 ## Goal
 
-When six walls each render an **independent** pattern texture, edges and corners show visible discontinuities. The seam system was designed to:
+When six walls each render an **independent** pattern texture, edges can show visible discontinuities in animation phase and distortion. The edge-neighbor system supplies per-face neighbor data so `main.frag` can blend integrated time and distortion near face edges during RT generation.
 
-1. Blend **animation time** and **distortion** near face edges during RT generation (`main.frag`)
-2. Post-process **color** in edge bands by sampling neighbor face textures (`blitGalleryFaceSeam`)
+**Color seam compositing** (post-process blit across neighbor face textures) was removed; walls bind `latestTexture` directly.
 
-## Current status: partially implemented
+## Current status
 
 | Component | Status |
 |-----------|--------|
-| `GALLERY_FACE_EDGE_NEIGHBORS` | Implemented |
-| `getGalleryEdgeNeighborTimes/Distortion` | Implemented, fed to shader during RT pass |
-| `u_galleryEdgeBlend` in `main.frag` | **Always set to 0** during RT generation |
-| `displayMap` RT per face | Allocated + cleared, **never written** |
-| `blitGalleryFaceSeam()` | Implemented, **never called** from `useWebGL.js` |
-| `bindGallerySeamTextures()` | Implemented, **not used** on wall materials |
-| Wall flat materials | `MeshBasicMaterial` — no seam samplers |
+| `GALLERY_FACE_EDGE_NEIGHBORS` | Active |
+| `getGalleryEdgeNeighborTimes/Distortion` | Active — fed to shader during gallery RT pass |
+| `u_galleryNeighborIntegratedTime` / `u_galleryNeighborDistortion` | Uniforms set in `useWebGL.js`; no in-shader blend branch today |
+| `GALLERY_EDGE_BLEND` | Constant kept for future edge-band width |
+| Color seam blit / `displayMap` | **Removed** |
 
-**Net effect today:** walls behave as six independent textures. Neighbor uniform data is computed but edge blend in `main.frag` is disabled. No post seam composite runs.
+**Net effect today:** walls behave as six independent textures. Neighbor uniform data is computed each frame but not consumed in `main.frag` until an edge-blend branch is reintroduced.
 
 ## Edge neighbor table
 
@@ -29,70 +26,30 @@ BoxGeometry order: +x, -x, +y, -y, +z, -z.
 
 Example: face 0 (+x) neighbors along uMin/uMax/vMin/vMax edges are faces `[4, 5, 3, 2]`.
 
-## Coordinate helpers
-
-`galleryFaceUVToWorld(face, u, v)` and `galleryWorldToFaceUV(face, p)` — convert between face UV and world position on room box. Must stay consistent with `worldHitToGallerySurface()` in `galleryMapping.js`.
-
 ## Edge blend width
 
 ```javascript
 export const GALLERY_EDGE_BLEND = 0.1; // in face UV space (0–1)
 ```
 
-Used in seam GLSL and intended for `u_galleryEdgeBlend` during pattern generation.
+Reserved for a future in-shader edge blend on integrated time / distortion.
 
-## Intended wiring (not yet done)
+## Enabling in-shader edge animation sync
 
-```mermaid
-flowchart LR
-  A[Render 6 face latestTextures] --> B[For each face gf]
-  B --> C[blitGalleryFaceSeam → displayMap]
-  C --> D[Bind displayMap to wall material]
-```
+1. In `main.frag`, add an edge-band blend using `GALLERY_EDGE_BLEND` (or a uniform) that mixes `u_integratedTime` and `u_globalDistortionScale` toward `u_galleryNeighborIntegratedTime` / `u_galleryNeighborDistortion` by edge weights from `vUv`.
+2. In `useWebGL.js`, pass `GALLERY_EDGE_BLEND` (or equivalent) if needed.
+3. Test corners (+x/+y/+z triple meeting) with displacement on.
 
-Pseudo-sequence in `useWebGL` animate:
+## Displacement
 
-```javascript
-// After all faces updated this frame:
-for (let gf = 0; gf < 6; gf++) {
-  blitGalleryFaceSeam(renderer, seamPass, {
-    selfTexture: faces[gf].latestTexture,
-    neighborTextures: faces.map(f => f.latestTexture),
-    faceIndex: gf,
-    outputTarget: faces[gf].displayMap,
-  });
-}
-
-// Bind displayMap.texture instead of latestTexture
-bindFacePatternTextures(..., { displayTexture: face.displayMap.texture });
-```
-
-## In-shader edge animation sync
-
-When `u_galleryEdgeBlend > 0`, `main.frag` can blend integrated time and distortion toward neighbor face values in edge bands. This keeps **motion** continuous even before color seam blit.
-
-**Caution:** enabling both in-shader edge blend AND post blit may double-blend — test one at a time.
-
-## Displacement and seams
-
-Seam blit GLSL comments mention blending displacement-relevant data. If seams are enabled, height maps may also need edge consistency — either seam the color before height blit or blit height maps separately with the same edge logic.
+Height maps are generated from each face’s `latestTexture` independently. If edge motion sync is enabled, verify rim height still looks acceptable at wall joints.
 
 ## Files
 
-- `src/lib/gallerySeams.js` — full implementation
-- `src/lib/galleryDisplacement.js` — re-exports `createGallerySeamBlitPass`, `blitGalleryFaceSeam`
-- `src/hooks/useWebGL.js` — neighbor uniforms set; `u_galleryEdgeBlend = 0`; no blit call
-- `src/shaders/main.frag` — gallery edge blend branch (inactive while blend = 0)
+- `src/lib/galleryEdgeNeighbors.js` — neighbor graph + motion helpers
+- `src/hooks/useWebGL.js` — sets neighbor uniforms during gallery RT pass
+- `src/shaders/main.frag` — gallery face pass (neighbor uniforms declared; blend branch removed)
 
-## Enabling seams — checklist
+## Coordinate consistency
 
-1. After face RT batch, call `blitGalleryFaceSeam` for each face into `displayMap`
-2. Bind `displayMap.texture` to wall materials (flat + displaced `u_display`)
-3. Optionally set `u_galleryEdgeBlend = GALLERY_EDGE_BLEND` during RT generation for time sync
-4. Verify no double blending
-5. Test corners (+x/+y/+z triple meeting)
-6. Test with displacement on — check rim height continuity
-
-## Dead code warning
-
-`main.frag` may contain alternate atlas helpers (`galleryAtlasToFace`) with a **different** face indexing scheme. Do not mix with `gallerySeams.js` / `galleryMapping.js` convention without reconciling.
+World ↔ face UV for hit testing lives in `galleryMapping.js` (`worldHitToGallerySurface`). Any future seam or edge logic must match that convention, not unused atlas helpers in `main.frag`.

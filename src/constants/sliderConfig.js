@@ -1,6 +1,10 @@
 /**
  * Slider/param config and mode constants.
  */
+import { PATTERN_TYPES, PATTERN_TYPE_OPTIONS } from './patternTypes.js';
+
+export { PATTERN_TYPES, PATTERN_TYPE_OPTIONS };
+
 export const SLIDER_CONFIG = {
         symmetry: {
             label: "Symmetry",
@@ -547,12 +551,21 @@ export const SLIDER_CONFIG = {
             max: 0.5,
             step: 0.005,
             format: t => t.toFixed(3)
+        },
+        stressTestCount: {
+            label: "Stress Test Count",
+            min: 1,
+            max: 64,
+            step: 1,
+            format: t => String(Math.round(t))
         }
 };
 
-export const PATTERN_TYPES_LIST = ["invisible", "wovenGrid", "hyperTuring", "hyperVoronoi", "spiralArms", "reactionDiff", "hyperFlow", "cubeGrid", "kaleidoWave", "crystal", "plasma", "aurora", "inkDrop", "stainedGlass", "morph", "prism", "fractal", "lissajous"];
-export const PATTERN_TYPE_OPTIONS_LIST = ["invisible", ...PATTERN_TYPES_LIST.filter(t => t !== "invisible")];
-export const GLOBAL_PARAM_KEYS = ["feedbackMix", "globalTimeScale", "globalDistortionScale", "uvScale", "globalAudioSensitivity", "blendSpeedFactor", "pixelationFactor", "rainbowAnimationSpeed", "asciiCharSize"];
+/** @deprecated Use PATTERN_TYPES from constants/index.js */
+export const PATTERN_TYPES_LIST = PATTERN_TYPES;
+/** @deprecated Use PATTERN_TYPE_OPTIONS from constants/index.js */
+export const PATTERN_TYPE_OPTIONS_LIST = PATTERN_TYPE_OPTIONS;
+export const GLOBAL_PARAM_KEYS = ["feedbackMix", "globalTimeScale", "globalDistortionScale", "uvScale", "globalAudioSensitivity", "blendSpeedFactor", "pixelationFactor", "rainbowAnimationSpeed", "asciiCharSize", "stressTestCount"];
 export const MOUSE_PARAM_KEYS = ["mouseRadius", "mouseDistortion", "mouseSymmetry", "mouseAttract", "mouseTwist"];
 export const MOUSE_RANDOM_PARAM_KEYS = ["mouseDistortion", "mouseSymmetry", "mouseAttract", "mouseTwist"];
 export const THREE_D_PARAM_KEYS = ["patternDisplacement"];

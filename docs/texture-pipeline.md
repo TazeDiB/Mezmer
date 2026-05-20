@@ -4,6 +4,8 @@
 
 Gallery mode does **not** sample `main.frag` directly on mesh surfaces. Instead, each wall and floating object has a miniature copy of the 2D pipeline: feedback RTs → layer blend → output texture → optional height blit → bind to Three.js material.
 
+**Stress test modes** reuse the same RT bundle shape at scale **N** (one per tile/cube/castle part/particle). See [stress-test-system.md](./stress-test-system.md).
+
 ## Wall RT bundle
 
 `createGalleryFaceTargets()` in `galleryStack.js` creates **six** bundles:
@@ -16,7 +18,6 @@ Gallery mode does **not** sample `main.frag` directly on mesh surfaces. Instead,
   outA, outB,              // blend output ping-pong
   blendFlip,
   heightMap,               // luminance RT
-  displayMap,              // allocated, cleared — NOT written in animate loop
   latestTexture,           // pointer to current blend output
 }
 ```
@@ -39,8 +40,7 @@ When `galleryReady`, for each face `gf` in `facesThisFrame`:
 3. **Set gallery uniforms on main shader:**
    - `u_galleryFaceIndex = gf`
    - `u_galleryFaceSeed = GALLERY_FACE_SEEDS[gf]`
-   - `u_galleryNeighborIntegratedTime` / `u_galleryNeighborDistortion` from seam helpers
-   - **`u_galleryEdgeBlend = 0`** (edge color blend disabled during RT gen)
+   - `u_galleryNeighborIntegratedTime` / `u_galleryNeighborDistortion` from edge-neighbor helpers
 
 4. **Feedback pass** — render `main.frag` to `fbWrite`
 
@@ -132,12 +132,6 @@ Gallery path **skips** this final composite — the Three.js scene is the visibl
 - Visual mode indices, global color, pixelation, ascii
 
 This prevents gallery per-face/per-object overrides from leaking into 2D mode when toggling back.
-
-## displayMap (unused)
-
-Each wall target has a `displayMap` RT intended for **seam-composited** output (`blitGalleryFaceSeam`). It is cleared on init but **never written** in the current animate loop. Walls bind `latestTexture` directly.
-
-See [gallery-seams.md](./gallery-seams.md).
 
 ## Initialization and warmup
 

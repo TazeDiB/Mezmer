@@ -179,9 +179,7 @@ function interpolateWallLayer(fromLayer, toLayer, dt, fromGlobalColor, toGlobalC
     const a = fromLayer[key];
     const b = toLayer[key];
     if (typeof a === 'number' && typeof b === 'number') {
-      let v = lerp(a, b, dt);
-      if (key === 'symmetry') v = Math.round(v);
-      result[key] = v;
+      result[key] = lerp(a, b, dt);
     } else if (a !== undefined) {
       result[key] = a;
     }
@@ -198,18 +196,49 @@ function interpolateWallLayer(fromLayer, toLayer, dt, fromGlobalColor, toGlobalC
   return result;
 }
 
+function finalizeCommittedWallStack(wall) {
+  const globalColor = wall.globalColorMode;
+  return {
+    ...wall,
+    visualModeFrom: undefined,
+    visualModeTo: undefined,
+    visualModeBlend: undefined,
+    layers: wall.layers.map((layer) => {
+      const patternType = layer.patternType;
+      const colorMode =
+        wall.forceGlobalColor && globalColor ? globalColor : layer.colorMode;
+      return {
+        ...layer,
+        patternType,
+        colorMode,
+        blendTargetType: 'invisible',
+        blendTargetColorMode: colorMode,
+        blendAmount: 0,
+      };
+    }),
+  };
+}
+
+function getGalleryTransitionProgress(now, blendSpeedFactor) {
+  if (!galleryTransition) return null;
+  const duration =
+    galleryTransition.duration ?? getGalleryTransitionDuration(blendSpeedFactor);
+  const rawT = Math.min(1, (now - galleryTransition.startTime) / duration);
+  return { rawT, dt: smoothStep(rawT) };
+}
+
 function interpolateWallStacks(fromStacks, toStacks, dt) {
   return fromStacks.map((fromWall, wallIndex) => {
     const toWall = toStacks[wallIndex];
     return {
-      timeOffset: fromWall.timeOffset ?? 0,
+      timeOffset: lerp(fromWall.timeOffset ?? 0, toWall.timeOffset ?? 0, dt),
       uvScale: lerp(fromWall.uvScale ?? 0.8, toWall.uvScale ?? 0.8, dt),
       visualMode: toWall.visualMode,
       visualModeFrom: fromWall.visualMode,
       visualModeTo: toWall.visualMode,
       visualModeBlend: dt,
       globalColorMode: toWall.globalColorMode,
-      forceGlobalColor: dt >= 0.999 ? toWall.forceGlobalColor : false,
+      forceGlobalColor: fromWall.forceGlobalColor ?? false,
       layers: fromWall.layers.map((fromLayer, layerIndex) =>
         interpolateWallLayer(
           fromLayer,
@@ -236,26 +265,46 @@ export function startGalleryWallTransition(toStacks, blendSpeedFactor = 1) {
   };
 }
 
-export function isGalleryTransitionActive(now = performance.now()) {
-  if (!galleryTransition) return false;
-  const duration = galleryTransition.duration ?? GALLERY_TRANSITION_BASE_MS;
-  return (now - galleryTransition.startTime) / duration < 1;
+export function hasGalleryWallTransition() {
+  return galleryTransition != null;
 }
 
-export function getGalleryWallStacksForRender(now = performance.now(), blendSpeedFactor = 1) {
+export function isGalleryTransitionActive(now = performance.now(), blendSpeedFactor = 1) {
+  const progress = getGalleryTransitionProgress(now, blendSpeedFactor);
+  return progress != null && progress.rawT < 1;
+}
+
+export function isGalleryWallTransitionPendingCommit(
+  now = performance.now(),
+  blendSpeedFactor = 1
+) {
+  const progress = getGalleryTransitionProgress(now, blendSpeedFactor);
+  return progress != null && progress.rawT >= 1;
+}
+
+/** Interpolate gallery wall stacks for rendering; does not commit. */
+export function peekGalleryWallStacksForRender(
+  now = performance.now(),
+  blendSpeedFactor = 1
+) {
   if (!galleryTransition) return activeGalleryWallStacks;
+  const progress = getGalleryTransitionProgress(now, blendSpeedFactor);
+  if (!progress) return activeGalleryWallStacks;
+  return interpolateWallStacks(galleryTransition.from, galleryTransition.to, progress.dt);
+}
 
-  const duration = galleryTransition.duration ?? getGalleryTransitionDuration(blendSpeedFactor);
-  const rawT = Math.min(1, (now - galleryTransition.startTime) / duration);
-  const dt = smoothStep(rawT);
+/** Commit wall transition when rawT >= 1; returns true if stacks were finalized. */
+export function commitGalleryWallTransition(now = performance.now(), blendSpeedFactor = 1) {
+  const progress = getGalleryTransitionProgress(now, blendSpeedFactor);
+  if (!progress || progress.rawT < 1) return false;
+  activeGalleryWallStacks = cloneWallStacks(galleryTransition.to).map(finalizeCommittedWallStack);
+  galleryTransition = null;
+  return true;
+}
 
-  if (rawT >= 1) {
-    activeGalleryWallStacks = cloneWallStacks(galleryTransition.to).map(normalizeWallStack);
-    galleryTransition = null;
-    return activeGalleryWallStacks;
-  }
-
-  return interpolateWallStacks(galleryTransition.from, galleryTransition.to, dt);
+/** @deprecated use peekGalleryWallStacksForRender — no longer commits */
+export function getGalleryWallStacksForRender(now = performance.now(), blendSpeedFactor = 1) {
+  return peekGalleryWallStacksForRender(now, blendSpeedFactor);
 }
 
 export function getGalleryWallStacks() {
@@ -369,7 +418,7 @@ export function copyLayerParamsToUniform(uni, layer) {
 }
 
 export function applyGalleryWallStack(uniformLayers, wallIndex, patternNameToIndex, colorModeIndex, globalParams, renderTimeMs, blendSpeedFactor) {
-  const wall = getGalleryWallStacksForRender(renderTimeMs, blendSpeedFactor)[wallIndex];
+  const wall = peekGalleryWallStacksForRender(renderTimeMs, blendSpeedFactor)[wallIndex];
   if (!wall || !uniformLayers || !patternNameToIndex) return wall;
 
   for (let i = 0; i < 4; i++) {
@@ -394,11 +443,10 @@ export function applyGalleryWallStack(uniformLayers, wallIndex, patternNameToInd
 
 /** Apply per-wall visual mode + global color overrides for gallery face passes. */
 export function applyGalleryWallModes(shaderUniforms, wallIndex, colorModeIndex, visualModeIndex = VISUAL_MODE_INDEX, renderTimeMs, blendSpeedFactor) {
-  const wall = getGalleryWallStacksForRender(renderTimeMs, blendSpeedFactor)[wallIndex];
+  const wall = peekGalleryWallStacksForRender(renderTimeMs, blendSpeedFactor)[wallIndex];
   if (!wall || !shaderUniforms) return wall;
 
-  const transitioning =
-    wall.visualModeBlend != null && wall.visualModeBlend < 0.999 && wall.visualModeFrom != null;
+  const transitioning = galleryTransition != null && wall.visualModeFrom != null;
 
   if (transitioning) {
     const fromIdx = visualModeIndex[wall.visualModeFrom] ?? 0;
@@ -455,7 +503,6 @@ export function createGalleryFaceTargets(THREE, canvasWidth, canvasHeight, optio
       outA: new THREE.WebGLRenderTarget(w, h, options),
       outB: new THREE.WebGLRenderTarget(w, h, options),
       heightMap: new THREE.WebGLRenderTarget(w, h, heightOpts),
-      displayMap: new THREE.WebGLRenderTarget(w, h, heightOpts),
       latestTexture: null,
       blendFlip: true,
     };
@@ -474,7 +521,6 @@ export function resizeGalleryFaceTargets(targets, canvasWidth, canvasHeight, sca
     t.outA.setSize(w, h);
     t.outB.setSize(w, h);
     t.heightMap?.setSize(w, h);
-    t.displayMap?.setSize(w, h);
   }
 }
 
@@ -486,6 +532,5 @@ export function disposeGalleryFaceTargets(targets) {
     t.outA.dispose();
     t.outB.dispose();
     t.heightMap?.dispose();
-    t.displayMap?.dispose();
   }
 }

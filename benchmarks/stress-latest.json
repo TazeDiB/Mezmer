@@ -1,0 +1,302 @@
+{
+  "generatedAt": "2026-05-20T04:16:03.275Z",
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "profile": "standard",
+  "displacementEnabled": false,
+  "gpuEstimates": [
+    {
+      "mode": "plane2d",
+      "objectCount": 1,
+      "tileSizePx": 1080,
+      "shaderPassesPerFrame": 2,
+      "pixelsWrittenPerFrame": 2332800,
+      "rtMemoryBytes": 51321600,
+      "gridCols": 1,
+      "gridRows": 1,
+      "drawCalls": 1,
+      "usesFlyControls": false,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 1
+    },
+    {
+      "mode": "plane2d",
+      "objectCount": 4,
+      "tileSizePx": 540,
+      "shaderPassesPerFrame": 8,
+      "pixelsWrittenPerFrame": 2332800,
+      "rtMemoryBytes": 51321600,
+      "gridCols": 2,
+      "gridRows": 2,
+      "drawCalls": 4,
+      "usesFlyControls": false,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 1
+    },
+    {
+      "mode": "plane2d",
+      "objectCount": 16,
+      "tileSizePx": 270,
+      "shaderPassesPerFrame": 32,
+      "pixelsWrittenPerFrame": 2332800,
+      "rtMemoryBytes": 51321600,
+      "gridCols": 4,
+      "gridRows": 4,
+      "drawCalls": 16,
+      "usesFlyControls": false,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 1
+    },
+    {
+      "mode": "plane2d",
+      "objectCount": 32,
+      "tileSizePx": 180,
+      "shaderPassesPerFrame": 64,
+      "pixelsWrittenPerFrame": 2073600,
+      "rtMemoryBytes": 45619200,
+      "gridCols": 6,
+      "gridRows": 6,
+      "drawCalls": 32,
+      "usesFlyControls": false,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 0.889
+    },
+    {
+      "mode": "plane2d",
+      "objectCount": 64,
+      "tileSizePx": 135,
+      "shaderPassesPerFrame": 128,
+      "pixelsWrittenPerFrame": 2332800,
+      "rtMemoryBytes": 51321600,
+      "gridCols": 8,
+      "gridRows": 8,
+      "drawCalls": 64,
+      "usesFlyControls": false,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 1
+    },
+    {
+      "mode": "cubes3d",
+      "objectCount": 1,
+      "tileSizePx": 1080,
+      "shaderPassesPerFrame": 2,
+      "pixelsWrittenPerFrame": 2332800,
+      "rtMemoryBytes": 51321600,
+      "gridCols": 1,
+      "gridRows": 1,
+      "drawCalls": 1,
+      "usesFlyControls": true,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 1
+    },
+    {
+      "mode": "cubes3d",
+      "objectCount": 4,
+      "tileSizePx": 540,
+      "shaderPassesPerFrame": 8,
+      "pixelsWrittenPerFrame": 2332800,
+      "rtMemoryBytes": 51321600,
+      "gridCols": 2,
+      "gridRows": 2,
+      "drawCalls": 4,
+      "usesFlyControls": true,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 1
+    },
+    {
+      "mode": "cubes3d",
+      "objectCount": 8,
+      "tileSizePx": 360,
+      "shaderPassesPerFrame": 16,
+      "pixelsWrittenPerFrame": 2073600,
+      "rtMemoryBytes": 45619200,
+      "gridCols": 3,
+      "gridRows": 3,
+      "drawCalls": 8,
+      "usesFlyControls": true,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 0.889
+    },
+    {
+      "mode": "cubes3d",
+      "objectCount": 16,
+      "tileSizePx": 270,
+      "shaderPassesPerFrame": 32,
+      "pixelsWrittenPerFrame": 2332800,
+      "rtMemoryBytes": 51321600,
+      "gridCols": 4,
+      "gridRows": 4,
+      "drawCalls": 16,
+      "usesFlyControls": true,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 1
+    },
+    {
+      "mode": "cubes3d",
+      "objectCount": 32,
+      "tileSizePx": 180,
+      "shaderPassesPerFrame": 64,
+      "pixelsWrittenPerFrame": 2073600,
+      "rtMemoryBytes": 45619200,
+      "gridCols": 6,
+      "gridRows": 6,
+      "drawCalls": 32,
+      "usesFlyControls": true,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 0.889
+    },
+    {
+      "mode": "particles3d",
+      "objectCount": 1,
+      "tileSizePx": 64,
+      "shaderPassesPerFrame": 2,
+      "pixelsWrittenPerFrame": 8192,
+      "rtMemoryBytes": 180224,
+      "gridCols": 1,
+      "gridRows": 1,
+      "drawCalls": 1,
+      "usesFlyControls": true,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 0.004
+    },
+    {
+      "mode": "particles3d",
+      "objectCount": 16,
+      "tileSizePx": 64,
+      "shaderPassesPerFrame": 32,
+      "pixelsWrittenPerFrame": 131072,
+      "rtMemoryBytes": 2883584,
+      "gridCols": 4,
+      "gridRows": 4,
+      "drawCalls": 16,
+      "usesFlyControls": true,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 0.056
+    },
+    {
+      "mode": "particles3d",
+      "objectCount": 64,
+      "tileSizePx": 48,
+      "shaderPassesPerFrame": 128,
+      "pixelsWrittenPerFrame": 294912,
+      "rtMemoryBytes": 6488064,
+      "gridCols": 8,
+      "gridRows": 8,
+      "drawCalls": 64,
+      "usesFlyControls": true,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 0.126
+    },
+    {
+      "mode": "particles3d",
+      "objectCount": 128,
+      "tileSizePx": 32,
+      "shaderPassesPerFrame": 256,
+      "pixelsWrittenPerFrame": 262144,
+      "rtMemoryBytes": 5767168,
+      "gridCols": 12,
+      "gridRows": 11,
+      "drawCalls": 128,
+      "usesFlyControls": true,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 0.112
+    },
+    {
+      "mode": "particles3d",
+      "objectCount": 256,
+      "tileSizePx": 32,
+      "shaderPassesPerFrame": 512,
+      "pixelsWrittenPerFrame": 524288,
+      "rtMemoryBytes": 11534336,
+      "gridCols": 16,
+      "gridRows": 16,
+      "drawCalls": 256,
+      "usesFlyControls": true,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 0.225
+    },
+    {
+      "mode": "castle100",
+      "objectCount": 100,
+      "tileSizePx": 64,
+      "shaderPassesPerFrame": 200,
+      "pixelsWrittenPerFrame": 819200,
+      "rtMemoryBytes": 18022400,
+      "gridCols": 10,
+      "gridRows": 10,
+      "drawCalls": 100,
+      "usesFlyControls": true,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 0.351
+    },
+    {
+      "mode": "castle1000",
+      "objectCount": 1000,
+      "tileSizePx": 48,
+      "shaderPassesPerFrame": 2000,
+      "pixelsWrittenPerFrame": 4608000,
+      "rtMemoryBytes": 101376000,
+      "gridCols": 32,
+      "gridRows": 32,
+      "drawCalls": 1000,
+      "usesFlyControls": true,
+      "usesHeightmapSlot": true,
+      "relativeShaderCost": 1.975
+    }
+  ],
+  "cpuBenchmarks": [
+    {
+      "task": "generateCastleParts(100)",
+      "medianMs": 0.121,
+      "objectCount": 100
+    },
+    {
+      "task": "generateCastleParts(1000)",
+      "medianMs": 0.674,
+      "objectCount": 1000
+    },
+    {
+      "task": "generateCastleParts(10000)",
+      "medianMs": 17.723,
+      "objectCount": 10000
+    },
+    {
+      "task": "layoutStressParticles(16)",
+      "medianMs": 0.01,
+      "objectCount": 16
+    },
+    {
+      "task": "layoutStressParticles(64)",
+      "medianMs": 0.019,
+      "objectCount": 64
+    },
+    {
+      "task": "layoutStressParticles(256)",
+      "medianMs": 0.057,
+      "objectCount": 256
+    },
+    {
+      "task": "layoutStressPlaneGrid(64)",
+      "medianMs": 0.007,
+      "objectCount": 64
+    },
+    {
+      "task": "layoutStressCubeGrid(32)",
+      "medianMs": 0.011,
+      "objectCount": 32
+    },
+    {
+      "task": "layoutCastleScene(1000)",
+      "medianMs": 0.64,
+      "objectCount": 1000
+    }
+  ],
+  "notes": [
+    "GPU rows are estimates (shader passes × tile pixels × RT memory).",
+    "In-app FPS is the ground truth — run Stress Test modes with FPS overlay enabled.",
+    "Target budget: stay under ~1000 patterned objects for interactive gallery work.",
+    "Particles add cheap Three.js sprites; pattern RT cost dominates, not sprite motion."
+  ]
+}

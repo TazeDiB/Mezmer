@@ -3,8 +3,11 @@
  */
 export { lerp, randomInRange, isElectron } from './utils.js';
 export {
+  PRESET_VERSION,
   encodePreset,
   decodePreset,
+  validateGalleryStacks,
+  applyGalleryStacksFromPreset,
   generateShareUrl,
   parseShareUrl,
 } from './presets.js';

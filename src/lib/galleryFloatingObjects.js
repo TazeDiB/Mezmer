@@ -7,7 +7,9 @@ import {
   normalizeWallStack,
   interpolateWallStacks,
   getGalleryTransitionDuration,
+  hasGalleryWallTransition,
   isGalleryTransitionActive,
+  isGalleryWallTransitionPendingCommit,
 } from './galleryStack.js';
 import { createHeightMapTarget, HEIGHT_MAP_RT_OPTIONS } from './galleryDisplacement.js';
 
@@ -65,6 +67,37 @@ function smoothStep(t) {
   return t * t * (3 - 2 * t);
 }
 
+function finalizeCommittedWallStack(wall) {
+  const globalColor = wall.globalColorMode;
+  return {
+    ...wall,
+    visualModeFrom: undefined,
+    visualModeTo: undefined,
+    visualModeBlend: undefined,
+    layers: wall.layers.map((layer) => {
+      const patternType = layer.patternType;
+      const colorMode =
+        wall.forceGlobalColor && globalColor ? globalColor : layer.colorMode;
+      return {
+        ...layer,
+        patternType,
+        colorMode,
+        blendTargetType: 'invisible',
+        blendTargetColorMode: colorMode,
+        blendAmount: 0,
+      };
+    }),
+  };
+}
+
+function getFloatingTransitionProgress(now, blendSpeedFactor) {
+  if (!floatingTransition) return null;
+  const duration =
+    floatingTransition.duration ?? getGalleryTransitionDuration(blendSpeedFactor);
+  const rawT = Math.min(1, (now - floatingTransition.startTime) / duration);
+  return { rawT, dt: smoothStep(rawT) };
+}
+
 export function getFloatingObjectStacks() {
   return activeFloatingObjectStacks;
 }
@@ -88,30 +121,55 @@ export function startFloatingObjectTransition(toStacks, blendSpeedFactor = 1) {
   };
 }
 
-export function isFloatingObjectTransitionActive(now = performance.now()) {
-  if (!floatingTransition) return false;
-  const duration = floatingTransition.duration ?? getGalleryTransitionDuration(1);
-  return (now - floatingTransition.startTime) / duration < 1;
+export function hasFloatingObjectTransition() {
+  return floatingTransition != null;
 }
 
-export function getFloatingObjectStacksForRender(now = performance.now(), blendSpeedFactor = 1) {
+export function isFloatingObjectTransitionActive(
+  now = performance.now(),
+  blendSpeedFactor = 1
+) {
+  const progress = getFloatingTransitionProgress(now, blendSpeedFactor);
+  return progress != null && progress.rawT < 1;
+}
+
+export function isFloatingObjectTransitionPendingCommit(
+  now = performance.now(),
+  blendSpeedFactor = 1
+) {
+  const progress = getFloatingTransitionProgress(now, blendSpeedFactor);
+  return progress != null && progress.rawT >= 1;
+}
+
+/** Interpolate floating stacks for rendering; does not commit. */
+export function peekFloatingObjectStacksForRender(
+  now = performance.now(),
+  blendSpeedFactor = 1
+) {
   if (!floatingTransition) return activeFloatingObjectStacks;
-
-  const duration = floatingTransition.duration ?? getGalleryTransitionDuration(blendSpeedFactor);
-  const rawT = Math.min(1, (now - floatingTransition.startTime) / duration);
-  const dt = smoothStep(rawT);
-
-  if (rawT >= 1) {
-    activeFloatingObjectStacks = cloneWallStacks(floatingTransition.to).map(normalizeWallStack);
-    floatingTransition = null;
-    return activeFloatingObjectStacks;
-  }
-
-  return interpolateWallStacks(floatingTransition.from, floatingTransition.to, dt);
+  const progress = getFloatingTransitionProgress(now, blendSpeedFactor);
+  if (!progress) return activeFloatingObjectStacks;
+  return interpolateWallStacks(floatingTransition.from, floatingTransition.to, progress.dt);
 }
 
-export function isGalleryContentTransitionActive(now = performance.now()) {
-  return isGalleryTransitionActive(now) || isFloatingObjectTransitionActive(now);
+/** Commit float transition when rawT >= 1; returns true if stacks were finalized. */
+export function commitFloatingObjectTransition(now = performance.now(), blendSpeedFactor = 1) {
+  const progress = getFloatingTransitionProgress(now, blendSpeedFactor);
+  if (!progress || progress.rawT < 1) return false;
+  activeFloatingObjectStacks = cloneWallStacks(floatingTransition.to).map(
+    finalizeCommittedWallStack
+  );
+  floatingTransition = null;
+  return true;
+}
+
+/** @deprecated use peekFloatingObjectStacksForRender — no longer commits */
+export function getFloatingObjectStacksForRender(now = performance.now(), blendSpeedFactor = 1) {
+  return peekFloatingObjectStacksForRender(now, blendSpeedFactor);
+}
+
+export function isGalleryContentTransitionActive() {
+  return hasGalleryWallTransition() || hasFloatingObjectTransition();
 }
 
 export function getFloatingObjectRenderSize(canvasWidth, canvasHeight, scale = FLOATING_OBJECT_RENDER_SCALE) {
@@ -142,7 +200,7 @@ export function applyFloatingObjectStack(
   renderTimeMs,
   blendSpeedFactor
 ) {
-  const stack = getFloatingObjectStacksForRender(renderTimeMs, blendSpeedFactor)[objectIndex];
+  const stack = peekFloatingObjectStacksForRender(renderTimeMs, blendSpeedFactor)[objectIndex];
   if (!stack || !uniformLayers || !patternNameToIndex) return stack;
 
   for (let i = 0; i < 4; i++) {
@@ -172,11 +230,10 @@ export function applyFloatingObjectModes(
   renderTimeMs,
   blendSpeedFactor
 ) {
-  const stack = getFloatingObjectStacksForRender(renderTimeMs, blendSpeedFactor)[objectIndex];
+  const stack = peekFloatingObjectStacksForRender(renderTimeMs, blendSpeedFactor)[objectIndex];
   if (!stack || !shaderUniforms) return stack;
 
-  const transitioning =
-    stack.visualModeBlend != null && stack.visualModeBlend < 0.999 && stack.visualModeFrom != null;
+  const transitioning = floatingTransition != null && stack.visualModeFrom != null;
 
   if (transitioning) {
     const fromIdx = visualModeIndex[stack.visualModeFrom] ?? 0;

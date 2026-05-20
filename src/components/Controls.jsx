@@ -1,12 +1,40 @@
 /**
  * Controls panel: layers, audio, randomization, global settings, Joyride tour.
  */
-import React, { useCallback, useState, useMemo, memo } from 'react';
+import React, { useCallback, useState, memo } from 'react';
 import { jsx, jsxs } from 'react/jsx-runtime';
 import Joyride from 'react-joyride';
 import { TOOLTIP_COPY as cn, JOYRIDE_STEPS as ZL, AUDIO_REACTIVE_COLOR_MODES as W0 } from '../constants/joyrideSteps.js';
 import { CONTROL_STYLES as Qe } from '../constants/controlStyles.js';
 import { RANDOMIZER_THEMES, MOUSE_PARAM_KEYS } from '../constants/sliderConfig.js';
+import { STRESS_TEST_MODES, getStressTestMaxCount, isCastleStressMode, isStressTestMode } from '../lib/stressTest.js';
+
+function stressTestModeLabel(mode) {
+    if (mode === 'off') return 'Off';
+    if (mode === 'plane2d') return '2D Tile Plane';
+    if (mode === 'cubes3d') return '3D Cube Grid';
+    if (mode === 'particles3d') return '3D Particles';
+    if (mode === 'castle100') return '3D Castle (100)';
+    if (mode === 'castle1000') return '3D Castle (1,000)';
+    if (mode === 'castle10000') return '3D Castle (10,000)';
+    return mode;
+}
+
+function stressTestModeHelp(mode) {
+    if (mode === 'plane2d') {
+        return 'Renders a grid of independent pattern tiles on the view plane. Raise count to measure 2D texture throughput.';
+    }
+    if (mode === 'cubes3d') {
+        return 'Textured cubes in a 3D grid. Click to lock mouse · WASD move · Space/E up · Q/Ctrl down · Shift sprint · Esc unlock.';
+    }
+    if (mode === 'particles3d') {
+        return 'Animated particle sprites — each billboard runs the full pattern pipeline (up to 256). Noclip fly: click · WASD · Space/E up · Q/Ctrl down · Shift sprint · Esc unlock.';
+    }
+    if (isCastleStressMode(mode)) {
+        return 'Procedural castle — each brick, tile, and shingle has its own pattern. Noclip fly: click to lock look · WASD move · Space/E up · Q/Ctrl down · Shift sprint · Esc unlock.';
+    }
+    return '';
+}
 
 const ne = { jsx, jsxs, Fragment: React.Fragment };
 const Bb = Joyride;
@@ -67,6 +95,12 @@ function Controls({
     onLoadFromUrl,
     threeDEnabled,
     setThreeDEnabled,
+    stressTestMode,
+    setStressTestMode,
+    showFpsCounter,
+    setShowFpsCounter,
+    vsyncEnabled,
+    setVsyncEnabled,
     autoRandomizeTimeInterval: Je,
     setAutoRandomizeTimeInterval: st,
     randomizeColorModes: U,
@@ -88,24 +122,24 @@ function Controls({
             [W]: !ge[W]
         }))
     }, []);
+    const mt = je || onSourceSelected;
+    const Z = useCallback(W => {
+        const { name: ge, value: X, type: ve, checked: Me } = W.target;
+        if (ge === "blendSpeedFactor") c(parseFloat(X));
+        else if (ge === "desktopSourceSelect") mt ? mt(X) : $ && $(X);
+        else M(ge, ve === "checkbox" ? Me : X, ve);
+    }, [c, $, M, mt]);
     if (!t) return console.warn("Controls: params not initialized."), null;
     const B = F || Ue;
-    const mt = je || onSourceSelected;
-    const Y = () => (Ue ? pe() : ye()),
-        Z = useCallback(W => {
-            const { name: ge, value: X, type: ve, checked: Me } = W.target;
-            if (ge === "blendSpeedFactor") c(parseFloat(X));
-            else if (ge === "desktopSourceSelect") mt ? mt(X) : $ && $(X);
-            else M(ge, ve === "checkbox" ? Me : X, ve);
-        }, [c, $, M, mt]),
-        xe = t[e];
+    const Y = () => (Ue ? pe() : ye());
+    const xe = t[e];
     if (!xe) return console.warn(`Controls: params[${e}] is undefined during render.`), null;
     if (!n) return console.warn("Controls: manualBlendProgress is undefined during render."), null;
     const ae = t,
         De = n[e] !== null,
         ke = xe.patternType || "invisible",
         de = a(ke),
-        he = (W, ge, X = !1) => {
+        he = (W, ge, X = !1, overrides = {}) => {
             const ve = i[W];
             if (!ve) return console.warn(`Slider config missing for param: ${W}`), null;
             const Me = r || W === "blendAmount" && De,
@@ -122,8 +156,8 @@ function Controls({
                     type: "range",
                     id: W,
                     name: W,
-                    min: ve.min,
-                    max: ve.max,
+                    min: overrides.min ?? ve.min,
+                    max: overrides.max ?? ve.max,
                     step: ve.step,
                     value: W === "blendSpeedFactor" ? l : ge,
                     onInput: Z,
@@ -607,12 +641,38 @@ function Controls({
                                 id: "threeDEnabledCheckbox",
                                 checked: !!threeDEnabled,
                                 onChange: W => setThreeDEnabled && setThreeDEnabled(W.target.checked),
-                                disabled: r
+                                disabled: r || stressTestMode !== "off"
                             }), ne.jsx("label", {
                                 htmlFor: "threeDEnabledCheckbox",
                                 children: "3D Gallery Room"
                             })]
                         })
+                    }), ne.jsxs("div", {
+                        className: Qe.controlGroup,
+                        title: "Stress-test GPU by rendering many pattern textures at once",
+                        children: [ne.jsx("label", {
+                            htmlFor: "stressTestModeSelect",
+                            children: "Stress Test:"
+                        }), ne.jsx("select", {
+                            id: "stressTestModeSelect",
+                            value: stressTestMode,
+                            onChange: W => setStressTestMode && setStressTestMode(W.target.value),
+                            disabled: r,
+                            children: STRESS_TEST_MODES.map(W => ne.jsx("option", {
+                                value: W,
+                                children: stressTestModeLabel(W)
+                            }, W))
+                        })]
+                    }), stressTestMode !== "off" && !isCastleStressMode(stressTestMode) && i.stressTestCount && he("stressTestCount", ae.stressTestCount, !0, {
+                        max: getStressTestMaxCount(stressTestMode)
+                    }), stressTestMode !== "off" && ne.jsx("p", {
+                        style: {
+                            margin: "0 0 10px 0",
+                            fontSize: "0.82em",
+                            color: "#aaa",
+                            lineHeight: 1.45
+                        },
+                        children: stressTestModeHelp(stressTestMode)
                     }), threeDEnabled ? ne.jsx("p", {
                         style: {
                             margin: "0 0 10px 0",
@@ -629,9 +689,9 @@ function Controls({
                             lineHeight: 1.45
                         },
                         children: "Hold LMB to paint · scroll brush radius · RMB randomize FX"
-                    }), threeDEnabled && ne.jsx("div", {
+                    }), (threeDEnabled || isStressTestMode(stressTestMode)) && ne.jsx("div", {
                         className: Qe.controlGroup,
-                        title: "Morph gallery walls using pattern brightness as a heightmap",
+                        title: "Morph surfaces using pattern brightness as a heightmap",
                         children: ne.jsxs("div", {
                             className: Qe.checkboxLabel,
                             children: [ne.jsx("input", {
@@ -646,7 +706,37 @@ function Controls({
                                 children: "Pattern Heightmap"
                             })]
                         })
-                    }), threeDEnabled && ae.patternDisplacementEnabled && i.patternDisplacement && he("patternDisplacement", ae.patternDisplacement, !0), f === "pixelate" && i.pixelationFactor && he("pixelationFactor", _, !0), f === "ascii" && i.asciiCharSize && he("asciiCharSize", v, !0), ne.jsxs("div", {
+                    }), (threeDEnabled || isStressTestMode(stressTestMode)) && ae.patternDisplacementEnabled && i.patternDisplacement && he("patternDisplacement", ae.patternDisplacement, !0), f === "pixelate" && i.pixelationFactor && he("pixelationFactor", _, !0), f === "ascii" && i.asciiCharSize && he("asciiCharSize", v, !0), ne.jsx("div", {
+                        className: Qe.controlGroup,
+                        title: "Show real-time frame rate overlay on the canvas",
+                        children: ne.jsxs("div", {
+                            className: Qe.checkboxLabel,
+                            children: [ne.jsx("input", {
+                                type: "checkbox",
+                                id: "showFpsCounterCheckbox",
+                                checked: !!showFpsCounter,
+                                onChange: W => setShowFpsCounter && setShowFpsCounter(W.target.checked)
+                            }), ne.jsx("label", {
+                                htmlFor: "showFpsCounterCheckbox",
+                                children: "Show FPS Counter"
+                            })]
+                        })
+                    }), ne.jsx("div", {
+                        className: Qe.controlGroup,
+                        title: "Lock frame rate to display refresh. Off runs uncapped for benchmarking (may tear).",
+                        children: ne.jsxs("div", {
+                            className: Qe.checkboxLabel,
+                            children: [ne.jsx("input", {
+                                type: "checkbox",
+                                id: "vsyncEnabledCheckbox",
+                                checked: !!vsyncEnabled,
+                                onChange: W => setVsyncEnabled && setVsyncEnabled(W.target.checked)
+                            }), ne.jsx("label", {
+                                htmlFor: "vsyncEnabledCheckbox",
+                                children: "VSync"
+                            })]
+                        })
+                    }), ne.jsxs("div", {
                         className: Qe.controlGroup,
                         children: [ne.jsx("label", {
                             htmlFor: "globalColorMode",

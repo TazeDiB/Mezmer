@@ -46,7 +46,6 @@ uniform float u_mouseMapping3D;
 uniform float u_mouseSphereActive;
 uniform float u_galleryFaceIndex;
 uniform float u_galleryFaceSeed;
-uniform float u_galleryEdgeBlend;
 uniform vec4 u_galleryNeighborIntegratedTime;
 uniform vec4 u_galleryNeighborDistortion;
 uniform float u_mouseGalleryFace;
@@ -512,24 +511,10 @@ highp vec2 applyMouseTwistAttract(highp vec2 p, highp vec2 mousePos, float w, fl
     return result;
 }
 
-highp vec2 applySymmetry(highp vec2 p, float n, float angleOffset, float mid, float high, float integratedTime) { 
-    float audioSymmetryMod = 1.0 + sin(integratedTime * 0.5 + mid * PI) * 0.02 * mid + cos(integratedTime * 0.8 - high * PI) * 0.03 * high;
-    float effective = max(1.0, n * audioSymmetryMod);
-
-    if (effective <= 1.001) { 
-        return p;
-    }
-
+highp vec2 foldIntoWedge(highp vec2 p, float foldN, float angleOffsetAdjusted) {
     float radius = length(p);
     if (radius < 0.0001) return vec2(0.0);
-
-    // Integer wedge count avoids fold-boundary seams when symmetry breathes.
-    // Fractional symmetry becomes subtle rotation instead of tearing fold topology.
-    float foldN = floor(effective + 0.5);
     if (foldN < 2.0) return p;
-    float fracN = effective - foldN;
-
-    float angleOffsetAdjusted = angleOffset + fracN * 0.4 * sin(integratedTime * 0.7 + radius * 2.5);
 
     mat2 rotOffset = rotate(angleOffsetAdjusted);
     highp vec2 q = rotOffset * p;
@@ -541,6 +526,25 @@ highp vec2 applySymmetry(highp vec2 p, float n, float angleOffset, float mid, fl
     a = abs(a);
 
     return radius * vec2(cos(a), sin(a));
+}
+
+highp vec2 applySymmetry(highp vec2 p, float n, float angleOffset, float mid, float high, float integratedTime) { 
+    float audioSymmetryMod = 1.0 + sin(integratedTime * 0.5 + mid * PI) * 0.02 * mid + cos(integratedTime * 0.8 - high * PI) * 0.03 * high;
+    float effective = max(1.0, n * audioSymmetryMod);
+
+    if (effective <= 1.001) { 
+        return p;
+    }
+
+    float foldN = floor(effective);
+    float blend = fract(effective);
+    highp vec2 foldedN = foldIntoWedge(p, foldN, angleOffset);
+    if (blend < 0.0001) {
+        return foldedN;
+    }
+
+    highp vec2 foldedN1 = foldIntoWedge(p, foldN + 1.0, angleOffset);
+    return mix(foldedN, foldedN1, smoothstep(0.0, 1.0, blend));
 }
 
 vec3 textureBlur(highp sampler2D tex, highp vec2 uv, highp vec2 resolution, float blurAmount) {
@@ -956,16 +960,29 @@ float pattern_aurora(highp vec2 p, float integratedTime, float freq, float flowS
 
 float pattern_inkDrop(highp vec2 p, float integratedTime, float flowSpeed, float rdComplexity, float rdSpotSize,
                       float bass, float mid, float high, float overallAudio) {
-    float t = integratedTime * (0.15 + flowSpeed * 0.5);
-    mat2 rot = rotate(t * 0.3 + bass * 0.5);
+    float t = integratedTime * (0.1 + flowSpeed * 0.45) * (1.0 + bass * 0.35);
+    mat2 rot = rotate(t * 0.25 + mid * 0.35);
     highp vec2 q = rot * p;
-    float scale = (2.0 + rdComplexity * 4.0) * (1.0 + mid * 1.5);
-    float n = fbm(q * scale + vec2(t * 0.5, -t * 0.3));
-    float n2 = fbm(q * scale * 1.3 - vec2(t * 0.4, t * 0.6) + 10.0);
-    float marble = n * 0.6 + n2 * 0.4 + sin((n - n2) * PI * (2.0 + rdSpotSize * 4.0)) * 0.2;
-    marble = marble * 0.5 + 0.5;
-    float edge = smoothstep(0.35, 0.5, marble) + smoothstep(0.5, 0.65, marble) * (0.5 + high * 0.5);
-    return clamp(edge * (0.8 + overallAudio * 0.3), 0.0, 1.0);
+
+    float scale = (1.8 + rdComplexity * 3.0) * (1.0 + mid * 0.6);
+    float edgeSharpness = mix(0.045, 0.12, clamp(rdSpotSize, 0.0, 1.0));
+    highp vec2 drift = vec2(t * 0.22, -t * 0.16) + vec2(sin(t * 0.35), cos(t * 0.28)) * 0.12 * (1.0 + high * 0.3);
+
+    float n1 = fbm(q * scale + drift);
+    float n2 = fbm(q * scale * 1.28 - drift * 0.75 + vec2(5.2, 9.4));
+
+    // Marbled ink vein where two diffuse fields meet
+    float vein = abs(n1 - n2);
+    float inkLine = 1.0 - smoothstep(0.0, edgeSharpness, vein);
+    float wash = smoothstep(0.18, 0.42, vein) * (1.0 - smoothstep(0.42, 0.62, vein));
+    float bleed = (1.0 - smoothstep(0.1, 0.55, vein)) * 0.28;
+
+    float r = length(q);
+    float mask = 1.0 - smoothstep(0.85, 1.35, r);
+
+    float v = (inkLine * 0.9 + wash * 0.45 + bleed) * mask;
+    v *= (0.72 + high * 0.28 + overallAudio * 0.18);
+    return clamp(v, 0.0, 1.0);
 }
 
 float pattern_stainedGlass(highp vec2 p, float integratedTime, float scale, float edgeWidth,
@@ -1467,37 +1484,31 @@ vec3 applyStainedGlassEffect(vec3 finalColor, highp vec2 uv, float time) {
 }
 
 vec3 applyCRTEffect(vec3 finalColor, highp vec2 uv, float time) {
-    // Curvature
+    // Curvature (barrel distortion)
     highp vec2 crtUV = uv * 2.0 - 1.0;
     highp vec2 offset = crtUV.yx / 5.0;
     crtUV = crtUV + crtUV * offset * offset;
     crtUV = crtUV * 0.5 + 0.5;
 
-    // Check if outside screen
-    if (crtUV.x < 0.0 || crtUV.x > 1.0 || crtUV.y < 0.0 || crtUV.y > 1.0) {
-        return vec3(0.0);
-    }
+    // Clamp sampled coords so distorted edges stay on-pattern (no black letterboxing)
+    highp vec2 sampleUV = clamp(crtUV, 0.0, 1.0);
 
-    // Chromatic Aberration
+    // Chromatic aberration
     float aberrationAmount = 0.005;
     vec3 col;
-    col.r = texture2D(u_feedback_texture, vec2(crtUV.x + aberrationAmount, crtUV.y)).r;
-    col.g = texture2D(u_feedback_texture, crtUV).g;
-    col.b = texture2D(u_feedback_texture, vec2(crtUV.x - aberrationAmount, crtUV.y)).b;
+    col.r = texture2D(u_feedback_texture, vec2(clamp(sampleUV.x + aberrationAmount, 0.0, 1.0), sampleUV.y)).r;
+    col.g = texture2D(u_feedback_texture, sampleUV).g;
+    col.b = texture2D(u_feedback_texture, vec2(clamp(sampleUV.x - aberrationAmount, 0.0, 1.0), sampleUV.y)).b;
 
     // Scanlines
-    float scanline = sin(crtUV.y * 800.0) * 0.04;
+    float scanline = sin(sampleUV.y * 800.0) * 0.04;
     col -= scanline;
-
-    // Vignette
-    float vignette = length(crtUV - 0.5);
-    col *= smoothstep(0.8, 0.4, vignette);
 
     // Mix heavily with final color to retain pattern geometry but apply post-effects
     vec3 mixedOut = mix(finalColor, col, 0.7);
 
     // Fast moving subtle bright line
-    float scanBar = sin(crtUV.y * 10.0 + time * 5.0);
+    float scanBar = sin(sampleUV.y * 10.0 + time * 5.0);
     mixedOut += smoothstep(0.98, 1.0, scanBar) * 0.15;
 
     return clamp(mixedOut, 0.0, 1.0);
@@ -1712,34 +1723,6 @@ void main() {
     bool galleryFacePass = u_galleryFaceIndex >= 0.0;
     float animTime = u_integratedTime;
     float animDistortionScale = u_globalDistortionScale;
-    if (galleryFacePass && u_galleryEdgeBlend > 0.0) {
-        vec4 edgeWeights = vec4(
-            1.0 - smoothstep(0.0, u_galleryEdgeBlend, vUv.x),
-            1.0 - smoothstep(0.0, u_galleryEdgeBlend, 1.0 - vUv.x),
-            1.0 - smoothstep(0.0, u_galleryEdgeBlend, vUv.y),
-            1.0 - smoothstep(0.0, u_galleryEdgeBlend, 1.0 - vUv.y)
-        );
-        float totalW = 1.0;
-        float timeSum = u_integratedTime;
-        float distSum = u_globalDistortionScale;
-        for (int i = 0; i < 4; i++) {
-            float w = edgeWeights[i];
-            if (w <= 0.001) continue;
-            float neighborTime = (i == 0) ? u_galleryNeighborIntegratedTime.x
-                : (i == 1) ? u_galleryNeighborIntegratedTime.y
-                : (i == 2) ? u_galleryNeighborIntegratedTime.z
-                : u_galleryNeighborIntegratedTime.w;
-            float neighborDist = (i == 0) ? u_galleryNeighborDistortion.x
-                : (i == 1) ? u_galleryNeighborDistortion.y
-                : (i == 2) ? u_galleryNeighborDistortion.z
-                : u_galleryNeighborDistortion.w;
-            timeSum += neighborTime * w;
-            distSum += neighborDist * w;
-            totalW += w;
-        }
-        animTime = timeSum / totalW;
-        animDistortionScale = distSum / totalW;
-    }
 
     float beatPhase = fract(animTime * u_bpm / 60.0);
     float bpmPulse = (sin(beatPhase * TAU - PI * 0.5) * 0.5 + 0.5); 
@@ -1785,18 +1768,13 @@ void main() {
         bool basePatternInvisible = currentLayer.patternType == PATTERN_INVISIBLE;
         bool targetPatternInvisible = currentLayer.blendTargetType == PATTERN_INVISIBLE;
         float blendAmount = currentLayer.blendAmount;
-        bool blendComplete = blendAmount <= 0.01 || blendAmount >= 0.99;
 
         
         if (basePatternInvisible && targetPatternInvisible) {
             continue;
         }
         
-        if (basePatternInvisible && blendAmount <= 0.01) {
-            continue;
-        }
-         
-        if (targetPatternInvisible && blendAmount >= 0.99) {
+        if (basePatternInvisible && blendAmount <= 0.0) {
             continue;
         }
 
@@ -1828,6 +1806,7 @@ void main() {
             ? mouseInfluenceWeight(uv, mouseCentered, u_mouseBrushRadius)
             : 0.0;
 
+        // Optional: add u_integratedTime * u_globalSymmetryOffsetSpeed to symmetryAngleOffset
         float symmetryAngleOffset = currentLayer.accumulatedSymmetryAngle + audioDrivenRotation;
         float modulatedSymmetry = currentLayer.symmetry + layerMid * 2.0 + u_mouseSymmetry * mouseWeight;
         
@@ -1852,20 +1831,25 @@ void main() {
         float pattern_target = 0.0;
         float pattern = 0.0;
 
-        
-        if (!basePatternInvisible && blendAmount < 0.99) {
-            
-            pattern_base = getPatternValue(currentLayer.patternType, i, currentLayer, uv, dist_uv, animTime, layerBass, layerMid, layerHigh, layerOverall);
+        if (blendAmount <= 0.0) {
+            if (!basePatternInvisible) {
+                pattern_base = getPatternValue(currentLayer.patternType, i, currentLayer, uv, dist_uv, animTime, layerBass, layerMid, layerHigh, layerOverall);
+            }
+            pattern = pattern_base;
+        } else if (blendAmount >= 1.0) {
+            if (!targetPatternInvisible) {
+                pattern_target = getPatternValue(currentLayer.blendTargetType, i, currentLayer, uv, dist_uv, animTime, layerBass, layerMid, layerHigh, layerOverall);
+            }
+            pattern = pattern_target;
+        } else {
+            if (!basePatternInvisible) {
+                pattern_base = getPatternValue(currentLayer.patternType, i, currentLayer, uv, dist_uv, animTime, layerBass, layerMid, layerHigh, layerOverall);
+            }
+            if (!targetPatternInvisible) {
+                pattern_target = getPatternValue(currentLayer.blendTargetType, i, currentLayer, uv, dist_uv, animTime, layerBass, layerMid, layerHigh, layerOverall);
+            }
+            pattern = mix(pattern_base, pattern_target, blendAmount);
         }
-
-        
-        if (!targetPatternInvisible && blendAmount > 0.01) {
-            
-            pattern_target = getPatternValue(currentLayer.blendTargetType, i, currentLayer, uv, dist_uv, animTime, layerBass, layerMid, layerHigh, layerOverall);
-        }
-        
-        
-        pattern = mix(pattern_base, pattern_target, blendAmount);
 
         
         

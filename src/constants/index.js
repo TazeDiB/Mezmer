@@ -5,28 +5,7 @@
 export { JOYRIDE_STEPS, TOOLTIP_COPY, AUDIO_REACTIVE_COLOR_MODES } from './joyrideSteps.js';
 export { SLIDER_CONFIG, GLOBAL_PARAM_KEYS, MOUSE_PARAM_KEYS, VISUAL_MODES, VISUAL_MODE_INDEX, COLOR_MODES } from './sliderConfig.js';
 export { CONTROL_STYLES, CANVAS_STYLES, APP_STYLES } from './controlStyles.js';
-export const PATTERN_TYPES = [
-  'invisible',
-  'wovenGrid',
-  'hyperTuring',
-  'hyperVoronoi',
-  'spiralArms',
-  'reactionDiff',
-  'hyperFlow',
-  'cubeGrid',
-  'kaleidoWave',
-  'crystal',
-  'plasma',
-  'aurora',
-  'inkDrop',
-  'stainedGlass',
-  'morph',
-  'prism',
-  'fractal',
-  'lissajous',
-];
-
-export const PATTERN_TYPE_OPTIONS = ['invisible', ...PATTERN_TYPES.filter((t) => t !== 'invisible')];
+export { PATTERN_TYPES, PATTERN_TYPE_OPTIONS } from './patternTypes.js';
 
 /** Which params each pattern type exposes in the UI */
 export const PARAM_CONFIG = {
@@ -173,4 +152,5 @@ export const DEFAULT_GLOBALS = {
   mouseTwist: 0.5,
   patternDisplacementEnabled: false,
   patternDisplacement: 0.12,
+  stressTestCount: 4,
 };
